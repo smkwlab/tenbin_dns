@@ -22,7 +22,7 @@ defmodule DNSpacket do
   end
 
   def create_domain_name(name) do
-    create_domain_name_label(String.split(name, ".")) <> <<0>>
+    create_domain_name_label(String.split(name, "."))
   end
   
   defp create_domain_name_label(label, result \\ <<>>)
