@@ -36,4 +36,33 @@ defmodule TenbinDnsTest do
     }
     assert DNSpacket.create(packet) == <<0x18,0x25,1,0,0,1,0,0,0,0,0,0,5,0x67,0x6d,0x61,0x69,0x6c,3,0x63,0x6f,0x6d,0,0,0xff,0,1>>
   end
+
+  test "parse packet" do
+    packet = DNSpacket.create(%{
+      id: 0x1825,
+      flags: 0x8180,
+      question: [%{qname: "gmail.com.", qtype: :all, qclass: :in}],
+      answer: [%{name: "gmail.com.",
+                 type: :soa,
+                 class: :in,
+                 ttl: 59,
+                 rdata: %{
+                   mname: "ns1.google.com.",
+                   rname: "dns-admin.google.com.",
+                   serial: 389589954,
+                   refresh: 900,
+                   retry: 900,
+                   expire: 1800,
+                   minimum: 60,
+                 }
+                }],
+      authority: [],
+      additional: [],
+    })
+    parsed = DNSpacket.parse(packet)
+    assert parsed.id == 0x1825
+    assert hd(parsed.question).qname == "gmail.com."
+    assert hd(parsed.question).qtype == 255
+    assert hd(parsed.answer).rdata.expire == 1800
+  end
 end
