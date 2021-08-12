@@ -25,6 +25,12 @@ defmodule DNS do
       :svcb => 64,
       65 => :https,
       :https => 65,
+
+      252 => :axfr,
+      :axfr => 252,
+      255 => :all,
+      :all => 255,
+
       257 => :caa,
       :caa => 257
     }

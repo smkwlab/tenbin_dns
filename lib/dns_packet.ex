@@ -1,6 +1,19 @@
 defmodule DNSpacket do
   require Logger
 
+  def create(packet) do
+    <<packet.id                ::16,
+      packet.flags             ::16,
+      length(packet.question)  ::16,
+      length(packet.answer)    ::16,
+      length(packet.authority) ::16,
+      length(packet.additional)::16>> <>
+    create_question(packet.question) <>
+    create_answer(packet.answer) <>
+    create_answer(packet.authority) <>
+    create_answer(packet.additional)
+  end
+
   def create_question(list, result \\ "")
 
   def create_question([], result) do
