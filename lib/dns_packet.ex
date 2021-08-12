@@ -1,6 +1,4 @@
 defmodule DNSpacket do
-  require Logger
-
   def create(packet) do
     <<packet.id                ::16,
       packet.flags             ::16,
@@ -28,13 +26,6 @@ defmodule DNSpacket do
     create_domain_name(qname) <> <<DNS.type[qtype]::16, DNS.class[qclass]::16>>
   end
 
-  # handle invalid question item
-  # XXX should be improved
-  def create_question_item(_invalid) do
-    Logger.debug("invalid argument to create question item")
-    <<0>>
-  end
-
   def create_answer(rrs, result \\ "")
 
   def create_answer([], result) do
@@ -49,13 +40,6 @@ defmodule DNSpacket do
     create_domain_name(name) <>
     <<DNS.type[type]::16, DNS.class[class]::16, ttl::32>> <> 
     add_rdlength(create_rdata(type, class, rdata))
-  end
-
-  # handle invalid answer item
-  # XXX should be improved
-  def create_rr(_invalid) do
-    Logger.debug("invalid argument to create answer item")
-    <<0>>
   end
 
   def create_rdata(:a, :in, rdata) do
@@ -95,13 +79,6 @@ defmodule DNSpacket do
 
   def create_rdata(:aaaa, :in, rdata) do
     rdata.addr
-  end
-
-  # unknown type, class rdata
-  # XXX should be improved
-  def create_rdata(type, class, rdata) do
-    Logger.debug("unknown type #{type}/#{class}")
-    rdata
   end
 
   defp add_rdlength(rdata) do
