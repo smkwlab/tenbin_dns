@@ -32,6 +32,10 @@ defmodule DNSpacket do
   end
 
   defp create_domain_name_label([label | tail], result) do
-    create_domain_name_label(tail, result <> <<String.length(label)::8, label::binary>>)
+    create_domain_name_label(tail, result <> create_character_string(label))
+  end
+
+  def create_character_string(txt) do
+    <<String.length(txt)::8, txt::binary>>
   end
 end
