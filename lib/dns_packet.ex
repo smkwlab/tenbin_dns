@@ -16,9 +16,83 @@ defmodule DNSpacket do
   end
 
   # handle invalid question item
+  # XXX should be improved
   def create_question_item(_invalid) do
     Logger.debug("invalid argument to create question item")
     <<0>>
+  end
+
+  def create_answer(list, result \\ "")
+
+  def create_answer([], result) do
+    result
+  end
+
+  def create_answer([answer | tail], result) do
+    create_answer(tail, result <> create_answer_item(answer))
+  end
+
+  def create_answer_item(%{name: name, type: type, class: class, ttl: ttl, rdata: rdata}) do
+    create_domain_name(name) <> <<DNS.type[type]::16, DNS.class[class]::16, ttl::32>> <> create_rdata(type, class, rdata)
+  end
+
+  # handle invalid answer item
+  # XXX should be improved
+  def create_answer_item(_invalid) do
+    Logger.debug("invalid argument to create answer item")
+    <<0>>
+  end
+
+  def create_rdata(:a, :in, rdata) do
+    add_rdlength(rdata.addr)
+  end
+
+  def create_rdata(:ns, _, rdata) do
+    add_rdlength(create_domain_name(rdata.name))
+  end
+
+  def create_rdata(:cname, _, rdata) do
+    add_rdlength(create_domain_name(rdata.name))
+  end
+
+  def create_rdata(:soa, _, rdata) do
+    add_rdlength(
+      create_domain_name(rdata.mname) <>
+      create_domain_name(rdata.rname) <>
+      <<
+      rdata.serial ::32,
+      rdata.refresh::32,
+      rdata.retry  ::32,
+      rdata.expire ::32,
+      rdata.minimum::32,
+      >>)
+  end
+
+  def create_rdata(:ptr, _, rdata) do
+    add_rdlength(create_domain_name(rdata.name))
+  end
+
+  def create_rdata(:mx, _, rdata) do
+    add_rdlength(<<rdata.preference::16>> <> create_domain_name(rdata.exchange))
+  end
+
+  def create_rdata(:txt, _, rdata) do
+    add_rdlength(create_character_string(rdata.txt))
+  end
+
+  def create_rdata(:aaaa, :in, rdata) do
+    add_rdlength(rdata.addr)
+  end
+
+  # unknown type, class rdata
+  # XXX should be improved
+  def create_rdata(type, class, rdata) do
+    Logger.debug("unknown type #{type}/#{class}")
+    rdata
+  end
+
+  def add_rdlength(rdata) do
+    <<byte_size(rdata)::16>> <> rdata
   end
 
   def create_domain_name(name) do
