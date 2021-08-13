@@ -103,11 +103,7 @@ defmodule DNSpacket do
     <<String.length(txt)::8, txt::binary>>
   end
 
-  def parse(packet) do
-    parse_packet(packet, packet)
-  end
-  
-  defp parse_packet(
+  def parse(
     <<
     id      :: unsigned-integer-size(16),
     qr      :: size(1),
@@ -123,7 +119,7 @@ defmodule DNSpacket do
     nscount :: unsigned-integer-size(16),
     arcount :: unsigned-integer-size(16),
     body  :: binary,
-    >>, orig_body) do
+    >> = orig_body) do
     
     {body,   offset, _orig_body, _count, question}   = parse_question(body, 12, orig_body, qdcount, [])
     {body,   offset, _orig_body, _count, answer}     = parse_answer(body, offset, orig_body, ancount, [])
