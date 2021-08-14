@@ -118,7 +118,7 @@ defmodule DNSpacket do
     ancount :: unsigned-integer-size(16),
     nscount :: unsigned-integer-size(16),
     arcount :: unsigned-integer-size(16),
-    body  :: binary,
+    body    :: binary,
     >> = orig_body) do
     
     {body,   offset, _orig_body, _count, question}   = parse_question(body, 12, orig_body, qdcount, [])
@@ -174,7 +174,7 @@ defmodule DNSpacket do
     ttl      :: unsigned-integer-size(32),
     rdlength :: unsigned-integer-size(16),
     rdata    :: binary-size(rdlength),
-    body   :: binary,
+    body     :: binary,
     >> = body
     parse_answer(body, offset + 10 + rdlength, orig_body, count - 1,
       [%{
@@ -228,15 +228,22 @@ defmodule DNSpacket do
     }
   end
 
+  def parse_rdata(:cname, _t0, _class, rdata, orig_body) do
+    {_,_,_,name} = parse_name(rdata, 0, orig_body, "")
+    %{
+      name: name,
+    }
+  end
+
   def parse_rdata(:soa, _t0, _class, rdata, orig_body) do
     {rdata,_,_,mname} = parse_name(rdata, 0, orig_body, "")
     {rdata,_,_,rname} = parse_name(rdata, 0, orig_body, "")
     <<
-    serial ::unsigned-integer-size(32),
-    refresh::unsigned-integer-size(32),
-    retry  ::unsigned-integer-size(32),
-    expire ::unsigned-integer-size(32),
-    minimum::unsigned-integer-size(32),
+    serial  :: unsigned-integer-size(32),
+    refresh :: unsigned-integer-size(32),
+    retry   :: unsigned-integer-size(32),
+    expire  :: unsigned-integer-size(32),
+    minimum :: unsigned-integer-size(32),
     >> = rdata
     %{
       mname: mname,
@@ -249,6 +256,26 @@ defmodule DNSpacket do
     }
   end
   
+  def parse_rdata(:ptr, _t0, _class, rdata, orig_body) do
+    {_,_,_,name} = parse_name(rdata, 0, orig_body, "")
+    %{
+      name: name,
+    }
+  end
+
+  def parse_rdata(:hinfo, _t0, _class,
+    <<
+    cpu_length :: unsigned-integer-size(8),
+    cpu        :: binary-size(cpu_length),
+    os_length  :: unsigned-integer-size(8),
+    os         :: binary-size(os_length),
+    >>, _orig_body) do
+    %{
+      cpu: cpu,
+      os: os,
+    }
+  end
+
 
   def parse_rdata(:mx, _t0, _class,
     <<preference::unsigned-integer-size(16), tmp_body::binary>>, orig_body) do
@@ -275,10 +302,11 @@ defmodule DNSpacket do
 
   def parse_rdata(:caa, _t0, _,
     <<
-    flag      ::unsigned-integer-size(8),
-    tag_length::unsigned-integer-size(8),
-    tag       ::binary-size(tag_length),
-    value     ::binary>>, _orig_body) do
+    flag       :: unsigned-integer-size(8),
+    tag_length :: unsigned-integer-size(8),
+    tag        :: binary-size(tag_length),
+    value      :: binary
+    >>, _orig_body) do
     %{
       flag: flag,
       tag: tag,
