@@ -1,15 +1,15 @@
 defmodule DNSpacket do
-  def create(packet) do
-    <<packet.id                ::16,
-      packet.flags             ::16,
-      length(packet.question)  ::16,
-      length(packet.answer)    ::16,
-      length(packet.authority) ::16,
-      length(packet.additional)::16>> <>
-    create_question(packet.question) <>
-    create_answer(packet.answer) <>
-    create_answer(packet.authority) <>
-    create_answer(packet.additional)
+  def create(%{id: id, flags: flags, question: question, answer: answer, authority: authority, additional: additional}) do
+    <<id                ::16,
+      flags             ::16,
+      length(question)  ::16,
+      length(answer)    ::16,
+      length(authority) ::16,
+      length(additional)::16>> <>
+    create_question(question) <>
+    create_answer(answer) <>
+    create_answer(authority) <>
+    create_answer(additional)
   end
 
   def create_question(list, result \\ "")
