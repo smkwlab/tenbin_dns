@@ -30,6 +30,7 @@ defmodule DNS do
       :axfr => 252,
       255 => :all,
       :all => 255,
+      :any => 255,
 
       257 => :caa,
       :caa => 257
