@@ -158,7 +158,8 @@ defmodule DNSpacket do
     qclass :: unsigned-integer-size(16),
     body   :: binary,
     >> = body
-    parse_question(body, offset + 4, orig_body, count - 1, [%{qname: qname, qtype: qtype, qclass: qclass} | result])
+    parse_question(body, offset + 4, orig_body, count - 1,
+      [%{qname: qname, qtype: DNS.type[qtype], qclass: DNS.class[qclass]} | result])
   end
   
   def parse_answer(body, offset, orig_body, 0, result) do

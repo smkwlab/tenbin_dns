@@ -62,7 +62,7 @@ defmodule TenbinDnsTest do
     parsed = DNSpacket.parse(packet)
     assert parsed.id == 0x1825
     assert hd(parsed.question).qname == "gmail.com."
-    assert hd(parsed.question).qtype == 255
+    assert hd(parsed.question).qtype == :all
     assert hd(parsed.answer).rdata.expire == 1800
   end
 end
