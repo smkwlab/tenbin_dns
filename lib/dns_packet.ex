@@ -224,7 +224,7 @@ defmodule DNSpacket do
   def parse_rdata(:ns, _t0, _class, rdata, orig_body) do
     {_,_,_,name} = parse_name(rdata, 0, orig_body, "")
     %{
-      ns: name,
+      name: name,
     }
   end
 
