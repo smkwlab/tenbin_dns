@@ -12,30 +12,25 @@ defmodule DNSpacket do
       (additional |> create_answer)
   end
 
-  def create_question(list, result \\ "")
-
-  def create_question([], result) do
-    result
+  def concat_binary_list(list) do
+    list
+    |> Enum.reduce(<<>>, fn i, acc -> acc<>i end)
   end
 
-  def create_question([question | tail], result) do
-    item = question |> create_question_item
-    tail |> create_question(result <> item)
+  def create_question(question) do
+    question
+    |> Enum.map(fn n -> n |> create_question_item end)
+    |> concat_binary_list
   end
 
   def create_question_item(%{qname: qname, qtype: qtype, qclass: qclass}) do
     (qname |> create_domain_name) <> <<DNS.type[qtype]::16, DNS.class[qclass]::16>>
   end
 
-  def create_answer(rrs, result \\ "")
-
-  def create_answer([], result) do
-    result
-  end
-
-  def create_answer([rr | tail], result) do
-    item = rr |> create_rr
-    tail |> create_answer(result <> item)
+  def create_answer(answer) do
+    answer
+    |> Enum.map(fn n -> n |> create_rr end)
+    |> concat_binary_list
   end
 
   def create_rr(%{name: name, type: type, class: class, ttl: ttl, rdata: rdata}) do
@@ -88,20 +83,12 @@ defmodule DNSpacket do
   end
 
   def create_domain_name(name) do
-    name |> String.split(".") |> create_domain_name_label
+    name
+    |> String.split(".")
+    |> Enum.map(fn n -> n |> create_character_string end)
+    |> concat_binary_list
   end
   
-  defp create_domain_name_label(label, result \\ <<>>)
-
-  defp create_domain_name_label([], result) do
-    result
-  end
-
-  defp create_domain_name_label([label | tail], result) do
-    item = label |> create_character_string
-    tail |> create_domain_name_label(result <> item)
-  end
-
   def create_character_string(txt) do
     <<String.length(txt)::8, txt::binary>>
   end
