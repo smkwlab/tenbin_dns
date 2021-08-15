@@ -6,10 +6,10 @@ defmodule DNSpacket do
       length(answer)    ::16,
       length(authority) ::16,
       length(additional)::16>> <>
-    create_question(question) <>
-    create_answer(answer) <>
-    create_answer(authority) <>
-    create_answer(additional)
+      (question   |> create_question) <>
+      (answer     |> create_answer) <>
+      (authority  |> create_answer) <>
+      (additional |> create_answer)
   end
 
   def create_question(list, result \\ "")
@@ -19,11 +19,12 @@ defmodule DNSpacket do
   end
 
   def create_question([question | tail], result) do
-    create_question(tail, result <> create_question_item(question))
+    item = question |> create_question_item
+    tail |> create_question(result <> item)
   end
 
   def create_question_item(%{qname: qname, qtype: qtype, qclass: qclass}) do
-    create_domain_name(qname) <> <<DNS.type[qtype]::16, DNS.class[qclass]::16>>
+    (qname |> create_domain_name) <> <<DNS.type[qtype]::16, DNS.class[qclass]::16>>
   end
 
   def create_answer(rrs, result \\ "")
@@ -33,30 +34,31 @@ defmodule DNSpacket do
   end
 
   def create_answer([rr | tail], result) do
-    create_answer(tail, result <> create_rr(rr))
+    item = rr |> create_rr
+    tail |> create_answer(result <> item)
   end
 
   def create_rr(%{name: name, type: type, class: class, ttl: ttl, rdata: rdata}) do
-    create_domain_name(name) <>
+    (name |> create_domain_name) <>
     <<DNS.type[type]::16, DNS.class[class]::16, ttl::32>> <> 
-    add_rdlength(create_rdata(type, class, rdata))
+    (rdata |> create_rdata(type, class) |> add_rdlength)
   end
 
-  def create_rdata(:a, :in, rdata) do
+  def create_rdata(rdata, :a, :in) do
     rdata.addr
   end
 
-  def create_rdata(:ns, _, rdata) do
-    create_domain_name(rdata.name)
+  def create_rdata(rdata, :ns, _) do
+    rdata.name |> create_domain_name
   end
 
-  def create_rdata(:cname, _, rdata) do
-    create_domain_name(rdata.name)
+  def create_rdata(rdata, :cname, _) do
+    rdata.name |> create_domain_name
   end
 
-  def create_rdata(:soa, _, rdata) do
-    create_domain_name(rdata.mname) <>
-    create_domain_name(rdata.rname) <>
+  def create_rdata(rdata, :soa, _) do
+    (rdata.mname |> create_domain_name) <>
+    (rdata.rname |> create_domain_name) <>
     <<rdata.serial ::32,
       rdata.refresh::32,
       rdata.retry  ::32,
@@ -65,19 +67,19 @@ defmodule DNSpacket do
     >>
   end
 
-  def create_rdata(:ptr, _, rdata) do
-    create_domain_name(rdata.name)
+  def create_rdata(rdata, :ptr, _) do
+    rdata.name |> create_domain_name
   end
 
-  def create_rdata(:mx, _, rdata) do
-    <<rdata.preference::16>> <> create_domain_name(rdata.name)
+  def create_rdata(rdata, :mx, _) do
+    <<rdata.preference::16>> <> (rdata.name |> create_domain_name)
   end
 
-  def create_rdata(:txt, _, rdata) do
-    create_character_string(rdata.txt)
+  def create_rdata(rdata, :txt, _) do
+    rdata.txt |> create_character_string
   end
 
-  def create_rdata(:aaaa, :in, rdata) do
+  def create_rdata(rdata, :aaaa, :in) do
     rdata.addr
   end
 
@@ -86,7 +88,7 @@ defmodule DNSpacket do
   end
 
   def create_domain_name(name) do
-    create_domain_name_label(String.split(name, "."))
+    name |> String.split(".") |> create_domain_name_label
   end
   
   defp create_domain_name_label(label, result \\ <<>>)
@@ -96,7 +98,8 @@ defmodule DNSpacket do
   end
 
   defp create_domain_name_label([label | tail], result) do
-    create_domain_name_label(tail, result <> create_character_string(label))
+    item = label |> create_character_string
+    tail |> create_domain_name_label(result <> item)
   end
 
   def create_character_string(txt) do
