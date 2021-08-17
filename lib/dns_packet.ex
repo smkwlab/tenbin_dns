@@ -33,6 +33,12 @@ defmodule DNSpacket do
     |> concat_binary_list
   end
 
+  # EDNS0
+  def create_rr(%{type: :opt, size: size, rcode: rcode, rdata: rdata}) do
+    <<0, DNS.type[:opt]::16, size::16, rcode::32>> <>
+    <<rdata |> create_opt_rr |> add_rdlength>>
+  end
+
   def create_rr(%{name: name, type: type, class: class, ttl: ttl, rdata: rdata}) do
     (name |> create_domain_name) <>
     <<DNS.type[type]::16, DNS.class[class]::16, ttl::32>> <> 
@@ -76,6 +82,19 @@ defmodule DNSpacket do
 
   def create_rdata(rdata, :aaaa, :in) do
     rdata.addr
+  end
+
+  # EDNS0
+  def create_opt_rr(option, result \\ <<>>)
+
+  def create_opt_rr([], result) do
+    result
+  end
+
+  def create_opt_rr([option| tail], result) do
+    # XXX
+    item = option
+    tail |> create_opt_rr(result <> item)
   end
 
   defp add_rdlength(rdata) do
@@ -165,20 +184,39 @@ defmodule DNSpacket do
     <<
     type     :: unsigned-integer-size(16),
     class    :: unsigned-integer-size(16),
-    ttl      :: unsigned-integer-size(32),
+    ttl      :: bitstring-size(32),
     rdlength :: unsigned-integer-size(16),
     rdata    :: binary-size(rdlength),
     body     :: binary,
     >> = body
     parse_answer(body, offset + 10 + rdlength, orig_body, count - 1,
-      [%{
-          name: name,
-          type: DNS.type[type],
-          class: DNS.class[class],
-          ttl: ttl,
-          rdlength: rdlength,
-          rdata: parse_rdata(DNS.type[type], type, DNS.class[class], rdata, orig_body)
-       } | result])
+      [ check_opt(name, type, class, ttl, rdlength, rdata, orig_body)| result])
+  end
+
+  # OPT Record
+  defp check_opt(name, 41, size, <<rcode::8,version::8,d0::1,z::15>>, rdlength, rdata, _orig_body) do
+    %{
+      name: name,
+      type: :opt,
+      payload_size: size,
+      extended_rcode: rcode,
+      version: version,
+      d0: d0,
+      z: z,
+      rdlength: rdlength,
+      rdata: [] |> parse_opt_rr(rdata),
+    }
+  end
+  
+  defp check_opt(name, type, class, <<ttl::unsigned-integer-size(32)>>, rdlength, rdata, orig_body) do
+    %{
+      name: name,
+      type: DNS.type[type],
+      class: DNS.class[class],
+      ttl: ttl,
+      rdlength: rdlength,
+      rdata: parse_rdata(DNS.type[type], type, DNS.class[class], rdata, orig_body)
+    } 
   end
 
   defp parse_name(
@@ -314,5 +352,23 @@ defmodule DNSpacket do
       tag: tag,
       value: value,
     }
+  end
+
+  def parse_opt_rr(result, <<>>) do
+    result
+  end
+
+  def parse_opt_rr(result,
+    <<
+    code   :: 16,
+    length :: 16,
+    data   :: binary-size(length),
+    opt_rr :: binary,
+    >>) do
+    [parse_opt_code(DNS.option[code], data) | result] |> parse_opt_rr(opt_rr)
+  end
+
+  def parse_opt_code(:edns_client_subnet, <<family::16,source::8,scope::8,address::binary>>) do
+    %{code: :edns_client_subnet, family: family, souce: source, scope: scope, addr: address}
   end
 end

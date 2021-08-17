@@ -21,6 +21,8 @@ defmodule DNS do
       :txt => 16,
       28 => :aaaa,
       :aaaa => 28,
+      41 => :opt,
+      :opt => 41,
       64 => :svcb,
       :svcb => 64,
       65 => :https,
@@ -82,6 +84,50 @@ defmodule DNS do
       :notimp => "Not Implemented",
       :refused => "Query Refused",
       
+    }
+  end
+  
+  def option() do
+    %{
+      0 => :reserved0,
+      :reserved0 => 0,
+      1 => :llq,
+      :llq => 1,
+      2 => :ul,
+      :ul => 2,
+      3 => :nsid,
+      :nsid => 3,
+      4 => :reserved4,
+      :reserved4 => 4,
+      5 => :dau,
+      :dau => 5,
+      6 => :dhu,
+      :dhu => 6,
+      7 => :n3u,
+      :n3u => 7,
+      8 => :edns_client_subnet,
+      :edns_client_subnet => 8,
+      9 => :edns_expire,
+      :edns_expire => 9,
+      10 => :cookie,
+      :cookie => 10,
+      11 => :edns_tcp_keepalive,
+      :edns_tcp_keepalive => 11,
+      12 => :padding,
+      :padding => 12,
+      13 => :chain,
+      :chain => 13,
+      14 => :edns_key_tag,
+      :edns_key_tag => 14,
+      15 => :extended_dns_error,
+      :extended_dns_error => 15,
+      16 => :edns_client_tag,
+      :edns_client_tag => 16,
+      17 => :edns_server_tag,
+      :edns_server_tag => 17,
+
+      26946 => :deviceid,
+      :deviceid => 26946,
     }
   end
   
