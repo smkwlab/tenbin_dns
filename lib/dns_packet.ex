@@ -132,10 +132,10 @@ defmodule DNSpacket do
     body    :: binary,
     >> = orig_body) do
     
-    {body,   offset, _orig_body, _count, question}   = parse_question(body, 12, orig_body, qdcount, [])
-    {body,   offset, _orig_body, _count, answer}     = parse_answer(body, offset, orig_body, ancount, [])
-    {body,   offset, _orig_body, _count, authority}  = parse_answer(body, offset, orig_body, nscount, [])
-    {_body, _offset, _orig_body, _count, additional} = parse_answer(body, offset, orig_body, arcount, [])
+    {body,  _, _, question}   = body |> parse_question(orig_body, qdcount, [])
+    {body,  _, _, answer}     = body |> parse_answer(orig_body, ancount, [])
+    {body,  _, _, authority}  = body |> parse_answer(orig_body, nscount, [])
+    {_,     _, _, additional} = body |> parse_answer(orig_body, arcount, [])
 
     %{
       id: id,
@@ -160,27 +160,27 @@ defmodule DNSpacket do
     }
   end
 
-  def parse_question(body, offset, orig_body, 0, result) do
-    {body, offset, orig_body, 0, result}
+  def parse_question(body, orig_body, 0, result) do
+    {body, orig_body, 0, result}
   end
   
-  def parse_question(body, offset, orig_body, count, result) do
-    {body, offset, orig_body, qname} = parse_name(body, offset, orig_body, "")
+  def parse_question(body, orig_body, count, result) do
+    {body, _, qname} = body |> parse_name(orig_body, "")
     <<
     qtype  :: unsigned-integer-size(16),
     qclass :: unsigned-integer-size(16),
     body   :: binary,
     >> = body
-    parse_question(body, offset + 4, orig_body, count - 1,
+    body |> parse_question(orig_body, count - 1,
       [%{qname: qname, qtype: DNS.type[qtype], qclass: DNS.class[qclass]} | result])
   end
   
-  def parse_answer(body, offset, orig_body, 0, result) do
-    {body, offset, orig_body, 0, result}
+  def parse_answer(body, orig_body, 0, result) do
+    {body, orig_body, 0, result}
   end
 
-  def parse_answer(body, offset, orig_body, count, result) do
-    {body, offset, orig_body, name} = parse_name(body, offset, orig_body, "")
+  def parse_answer(body, orig_body, count, result) do
+    {body, _, name} = body |> parse_name(orig_body, "")
     <<
     type     :: unsigned-integer-size(16),
     class    :: unsigned-integer-size(16),
@@ -189,7 +189,7 @@ defmodule DNSpacket do
     rdata    :: binary-size(rdlength),
     body     :: binary,
     >> = body
-    parse_answer(body, offset + 10 + rdlength, orig_body, count - 1,
+    body |> parse_answer(orig_body, count - 1,
       [ check_opt(name, type, class, ttl, rdlength, rdata, orig_body)| result])
   end
 
@@ -223,27 +223,27 @@ defmodule DNSpacket do
     <<
     0x0  :: unsigned-integer-size(8),
     body :: binary
-    >>, offset, orig_body, "") do
-    {body, offset+1, orig_body, "."}
+    >>, orig_body, "") do
+    {body, orig_body, "."}
   end
 
   defp parse_name(
     <<
     0x0  :: unsigned-integer-size(8),
     body :: binary
-    >>, offset, orig_body, result) do
-    {body, offset+1, orig_body, result}
+    >>, orig_body, result) do
+    {body, orig_body, result}
   end
 
   defp parse_name(
     <<
-    0b11        :: unsigned-integer-size(2),
-    name_offset :: unsigned-integer-size(14),
-    body        :: binary,
-    >>, offset, orig_body, result) do
-    <<_dummy::binary-size(name_offset), tmp_body::binary>> = orig_body
-    {_,_,_,name} = parse_name(tmp_body, offset, orig_body, result)
-    {body, offset+2, orig_body, name}
+    0b11   :: unsigned-integer-size(2),
+    offset :: unsigned-integer-size(14),
+    body   :: binary,
+    >>, orig_body, result) do
+    <<_::binary-size(offset), tmp_body::binary>> = orig_body
+    {_, _, name} = tmp_body |> parse_name(orig_body, result)
+    {body, orig_body, name}
   end
 
   defp parse_name(
@@ -251,8 +251,8 @@ defmodule DNSpacket do
     length :: unsigned-integer-size(8),
     name   :: binary-size(length),
     body   :: binary
-    >>, offset, orig_body, result) do
-    parse_name(body, offset+length+1, orig_body, result <> name <> ".")
+    >>, orig_body, result) do
+    body |> parse_name(orig_body, result <> name <> ".")
   end
 
   def parse_rdata(:a, _t0, :in, <<addr::unsigned-integer-size(32)>>, _orig_body) do
@@ -262,22 +262,22 @@ defmodule DNSpacket do
   end
 
   def parse_rdata(:ns, _t0, _class, rdata, orig_body) do
-    {_,_,_,name} = parse_name(rdata, 0, orig_body, "")
+    {_, _, name} = rdata |> parse_name(orig_body, "")
     %{
       name: name,
     }
   end
 
   def parse_rdata(:cname, _t0, _class, rdata, orig_body) do
-    {_,_,_,name} = parse_name(rdata, 0, orig_body, "")
+    {_, _, name} = rdata |> parse_name(orig_body, "")
     %{
       name: name,
     }
   end
 
   def parse_rdata(:soa, _t0, _class, rdata, orig_body) do
-    {rdata,_,_,mname} = parse_name(rdata, 0, orig_body, "")
-    {rdata,_,_,rname} = parse_name(rdata, 0, orig_body, "")
+    {rdata, _, mname} = rdata |> parse_name(orig_body, "")
+    {rdata, _, rname} = rdata |> parse_name(orig_body, "")
     <<
     serial  :: unsigned-integer-size(32),
     refresh :: unsigned-integer-size(32),
@@ -297,7 +297,7 @@ defmodule DNSpacket do
   end
   
   def parse_rdata(:ptr, _t0, _class, rdata, orig_body) do
-    {_,_,_,name} = parse_name(rdata, 0, orig_body, "")
+    {_, _, name} = rdata |> parse_name(orig_body, "")
     %{
       name: name,
     }
@@ -319,7 +319,7 @@ defmodule DNSpacket do
 
   def parse_rdata(:mx, _t0, _class,
     <<preference::unsigned-integer-size(16), tmp_body::binary>>, orig_body) do
-    {_,_,_,name} = parse_name(tmp_body, 0, orig_body, "")
+    {_, _, name} = tmp_body |> parse_name(orig_body, "")
     %{
       preference: preference,
       name: name,
