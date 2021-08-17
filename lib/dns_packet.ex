@@ -132,10 +132,10 @@ defmodule DNSpacket do
     body    :: binary,
     >> = orig_body) do
     
-    {body,  _, _, question}   = body |> parse_question(orig_body, qdcount, [])
-    {body,  _, _, answer}     = body |> parse_answer(orig_body, ancount, [])
-    {body,  _, _, authority}  = body |> parse_answer(orig_body, nscount, [])
-    {_,     _, _, additional} = body |> parse_answer(orig_body, arcount, [])
+    {body, _, _, question}   = body |> parse_question(orig_body, qdcount, [])
+    {body, _, _, answer}     = body |> parse_answer(orig_body, ancount, [])
+    {body, _, _, authority}  = body |> parse_answer(orig_body, nscount, [])
+    {_,    _, _, additional} = body |> parse_answer(orig_body, arcount, [])
 
     %{
       id: id,
@@ -182,41 +182,55 @@ defmodule DNSpacket do
   def parse_answer(body, orig_body, count, result) do
     {body, _, name} = body |> parse_name(orig_body, "")
     <<
-    type     :: unsigned-integer-size(16),
-    class    :: unsigned-integer-size(16),
-    ttl      :: bitstring-size(32),
-    rdlength :: unsigned-integer-size(16),
-    rdata    :: binary-size(rdlength),
-    body     :: binary,
+    type :: unsigned-integer-size(16),
+    body :: binary,
     >> = body
-    body |> parse_answer(orig_body, count - 1,
-      [ check_opt(name, type, class, ttl, rdlength, rdata, orig_body)| result])
+    body |> parse_answer_checkopt(orig_body, name, type, count, result) 
   end
 
   # OPT Record
-  defp check_opt(name, 41, size, <<rcode::8,version::8,d0::1,z::15>>, rdlength, rdata, _orig_body) do
-    %{
-      name: name,
-      type: :opt,
-      payload_size: size,
-      extended_rcode: rcode,
-      version: version,
-      d0: d0,
-      z: z,
-      rdlength: rdlength,
-      rdata: [] |> parse_opt_rr(rdata),
-    }
+  def parse_answer_checkopt(
+    <<
+    size     :: unsigned-integer-size(16),
+    rcode    :: unsigned-integer-size(8),
+    version  :: unsigned-integer-size(8),
+    d0       :: size(1),
+    z        :: size(15),
+    rdlength :: unsigned-integer-size(16),
+    rdata    :: binary-size(rdlength),
+    body     :: binary
+    >>, orig_body, name, 41, count, result) do
+    body |> parse_answer(orig_body, count - 1, 
+      [%{
+          name: name,
+          type: :opt,
+          payload_size: size,
+          extended_rcode: rcode,
+          version: version,
+          d0: d0,
+          z: z,
+          rdlength: rdlength,
+          rdata: [] |> parse_opt_rr(rdata),
+       }  | result])
   end
-  
-  defp check_opt(name, type, class, <<ttl::unsigned-integer-size(32)>>, rdlength, rdata, orig_body) do
-    %{
-      name: name,
-      type: DNS.type[type],
-      class: DNS.class[class],
-      ttl: ttl,
-      rdlength: rdlength,
-      rdata: parse_rdata(DNS.type[type], type, DNS.class[class], rdata, orig_body)
-    } 
+
+  def parse_answer_checkopt(
+    <<
+    class    :: unsigned-integer-size(16),
+    ttl      :: unsigned-integer-size(32),
+    rdlength :: unsigned-integer-size(16),
+    rdata    :: binary-size(rdlength),
+    body     :: binary
+    >>, orig_body, name, type, count, result) do
+    body |> parse_answer(orig_body, count - 1, 
+      [%{
+          name: name,
+          type: DNS.type[type],
+          class: DNS.class[class],
+          ttl: ttl,
+          rdlength: rdlength,
+          rdata: parse_rdata(DNS.type[type], type, DNS.class[class], rdata, orig_body)
+       }  | result])
   end
 
   defp parse_name(
@@ -353,6 +367,11 @@ defmodule DNSpacket do
       value: value,
     }
   end
+  
+  def parse_rdata(type, t0, class, body, _) do
+    %{type: type, type_number: t0, class: class, rdata: body}
+  end
+  
 
   def parse_opt_rr(result, <<>>) do
     result
