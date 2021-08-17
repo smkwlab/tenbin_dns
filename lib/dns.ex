@@ -56,6 +56,35 @@ defmodule DNS do
     }
   end
 
+  def rcode() do
+    %{
+      0 => :noerror,
+      :noerror => 0,
+      1 => :formerr,
+      :formerr => 1,
+      2 => :servfail,
+      :servfail => 2,
+      3 => :nxdomain,
+      :nxdomain => 3,
+      4 => :notimp,
+      :notimp => 4,
+      5 => :refused,
+      :refused => 5,
+    }
+  end
+
+  def rcode_text() do
+    %{
+      :noerror => "No Error",
+      :formerr => "Format Error",
+      :servfail => "Server Failure",
+      :nxdomain => "Non-Existent Domain",
+      :notimp => "Not Implemented",
+      :refused => "Query Refused",
+      
+    }
+  end
+  
   def port(), do: 53
   def service(), do: "domain"
 
