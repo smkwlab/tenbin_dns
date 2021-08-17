@@ -181,6 +181,14 @@ defmodule DNSpacket do
     <<
     0x0  :: unsigned-integer-size(8),
     body :: binary
+    >>, offset, orig_body, "") do
+    {body, offset+1, orig_body, "."}
+  end
+
+  defp parse_name(
+    <<
+    0x0  :: unsigned-integer-size(8),
+    body :: binary
     >>, offset, orig_body, result) do
     {body, offset+1, orig_body, result}
   end
