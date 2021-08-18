@@ -225,7 +225,7 @@ defmodule DNSpacket do
           class: DNS.class[class],
           ttl: ttl,
           rdlength: rdlength,
-          rdata: rdata |> parse_rdata(DNS.type[type], type, DNS.class[class], orig_body)
+          rdata: rdata |> parse_rdata(DNS.type[type] || type, DNS.class[class] || class, orig_body)
        }  | result])
   end
 
@@ -253,27 +253,27 @@ defmodule DNSpacket do
     body |> parse_name(orig_body, result <> name <> ".")
   end
 
-  def parse_rdata(<<addr::unsigned-integer-size(32)>>, :a, _, :in, _) do
+  def parse_rdata(<<addr::unsigned-integer-size(32)>>, :a, :in, _) do
     %{
       addr: addr,
     }
   end
 
-  def parse_rdata(rdata, :ns, _, _, orig_body) do
+  def parse_rdata(rdata, :ns, _, orig_body) do
     {_, _, name} = rdata |> parse_name(orig_body, "")
     %{
       name: name,
     }
   end
 
-  def parse_rdata(rdata, :cname, _, _, orig_body) do
+  def parse_rdata(rdata, :cname, _, orig_body) do
     {_, _, name} = rdata |> parse_name(orig_body, "")
     %{
       name: name,
     }
   end
 
-  def parse_rdata(rdata, :soa, _, _, orig_body) do
+  def parse_rdata(rdata, :soa, _, orig_body) do
     {rdata, _, mname} = rdata |> parse_name(orig_body, "")
     {rdata, _, rname} = rdata |> parse_name(orig_body, "")
     <<
@@ -294,7 +294,7 @@ defmodule DNSpacket do
     }
   end
   
-  def parse_rdata(rdata, :ptr, _, _, orig_body) do
+  def parse_rdata(rdata, :ptr, _, orig_body) do
     {_, _, name} = rdata |> parse_name(orig_body, "")
     %{
       name: name,
@@ -304,7 +304,7 @@ defmodule DNSpacket do
   def parse_rdata(<<cpu_length :: unsigned-integer-size(8),
                      cpu       :: binary-size(cpu_length),
                      os_length :: unsigned-integer-size(8),
-                     os        :: binary-size(os_length)>>, :hinfo, _, _, _) do
+                     os        :: binary-size(os_length)>>, :hinfo, _, _) do
     %{
       cpu: cpu,
       os: os,
@@ -313,7 +313,7 @@ defmodule DNSpacket do
 
 
   def parse_rdata(<<preference :: unsigned-integer-size(16),
-                   tmp_body    :: binary>>, :mx, _, _, orig_body) do
+                   tmp_body    :: binary>>, :mx, _, orig_body) do
     {_, _, name} = tmp_body |> parse_name(orig_body, "")
     %{
       preference: preference,
@@ -323,13 +323,13 @@ defmodule DNSpacket do
 
   # does not support multiple character strings TXT record
   def parse_rdata(<<length :: unsigned-integer-size(8),
-                    txt    :: binary-size(length), _::binary>>, :txt, _, _, _) do
+                    txt    :: binary-size(length), _::binary>>, :txt, _, _) do
     %{
       txt: txt,
     }
   end
 
-  def parse_rdata(<<addr::unsigned-integer-size(128)>>, :aaaa, _, :in, _) do
+  def parse_rdata(<<addr::unsigned-integer-size(128)>>, :aaaa, :in, _) do
     %{
       addr: addr,
     }
@@ -338,7 +338,7 @@ defmodule DNSpacket do
   def parse_rdata(<<flag       :: unsigned-integer-size(8),
                     tag_length :: unsigned-integer-size(8),
                     tag        :: binary-size(tag_length),
-                    value      :: binary>>, :caa, _, _, _) do
+                    value      :: binary>>, :caa, _, _) do
     %{
       flag: flag,
       tag: tag,
@@ -346,8 +346,9 @@ defmodule DNSpacket do
     }
   end
   
-  def parse_rdata(rdata, type, t0, class, _) do
-    %{type: type, type_number: t0, class: class, rdata: rdata}
+  def parse_rdata(rdata, type, class, _) do
+
+    %{type: type, class: class, rdata: rdata}
   end
 
   def parse_opt_rr(result, <<>>) do
