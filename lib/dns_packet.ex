@@ -246,9 +246,9 @@ defmodule DNSpacket do
     body |> parse_name(orig_body, result <> name <> ".")
   end
 
-  def parse_rdata(<<addr::unsigned-integer-size(32)>>, :a, :in, _) do
+  def parse_rdata(<<a1::8,a2::8,a3::8,a4::8>>, :a, :in, _) do
     %{
-      addr: addr,
+      addr: {a1, a2, a3, a4}
     }
   end
 
@@ -322,9 +322,9 @@ defmodule DNSpacket do
     }
   end
 
-  def parse_rdata(<<addr::unsigned-integer-size(128)>>, :aaaa, :in, _) do
+  def parse_rdata(<<a1::16,a2::16,a3::16,a4::16,a5::16,a6::16,a7::16,a8::16>>, :aaaa, :in, _) do
     %{
-      addr: addr,
+      addr: {a1,a2,a3,a4,a5,a6,a7,a8},
     }
   end
 
