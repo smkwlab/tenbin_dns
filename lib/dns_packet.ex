@@ -229,15 +229,8 @@ defmodule DNSpacket do
        }  | result])
   end
 
-  defp parse_name(<<0x0  :: unsigned-integer-size(8),
-                    body :: binary>>, orig_body, "") do
-    {body, orig_body, "."}
-  end
-  
-  defp parse_name(<<0x0  :: unsigned-integer-size(8),
-                    body :: binary>>, orig_body, result) do
-    {body, orig_body, result}
-  end
+  defp parse_name(<<0x0::size(8),body::binary>>, orig_body, ""), do: {body, orig_body, "."}
+  defp parse_name(<<0x0::size(8),body::binary>>, orig_body, result), do: {body, orig_body, result}
 
   defp parse_name(<<0b11   :: unsigned-integer-size(2),
                     offset :: unsigned-integer-size(14),
@@ -347,7 +340,6 @@ defmodule DNSpacket do
   end
   
   def parse_rdata(rdata, type, class, _) do
-
     %{type: type, class: class, rdata: rdata}
   end
 
