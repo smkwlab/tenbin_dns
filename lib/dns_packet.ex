@@ -6,30 +6,27 @@ defmodule DNSpacket do
       length(answer)    ::16,
       length(authority) ::16,
       length(additional)::16>> <>
-      (question   |> create_question) <>
-      (answer     |> create_answer) <>
-      (authority  |> create_answer) <>
-      (additional |> create_answer)
+      create_question(question) <>
+      create_answer(answer) <>
+      create_answer(authority) <>
+      create_answer(additional)
   end
 
-  def concat_binary_list(list) do
-    list
-    |> Enum.reduce(<<>>, fn i, acc -> acc<>i end)
-  end
+  def concat_binary_list(list), do: Enum.reduce(list, <<>>, fn i, acc -> acc <> i end)
 
   def create_question(question) do
     question
-    |> Enum.map(fn n -> n |> create_question_item end)
+    |> Enum.map(fn n -> create_question_item(n) end)
     |> concat_binary_list
   end
 
   def create_question_item(%{qname: qname, qtype: qtype, qclass: qclass}) do
-    (qname |> create_domain_name) <> <<DNS.type[qtype]::16, DNS.class[qclass]::16>>
+    create_domain_name(qname) <> <<DNS.type[qtype]::16, DNS.class[qclass]::16>>
   end
 
   def create_answer(answer) do
     answer
-    |> Enum.map(fn n -> n |> create_rr end)
+    |> Enum.map(fn n -> create_rr(n) end)
     |> concat_binary_list
   end
 
@@ -40,7 +37,7 @@ defmodule DNSpacket do
   end
 
   def create_rr(%{name: name, type: type, class: class, ttl: ttl, rdata: rdata}) do
-    (name |> create_domain_name) <>
+    create_domain_name(name) <>
     <<DNS.type[type]::16, DNS.class[class]::16, ttl::32>> <> 
     (rdata |> create_rdata(type, class) |> add_rdlength)
   end
@@ -50,16 +47,16 @@ defmodule DNSpacket do
   end
 
   def create_rdata(rdata, :ns, _) do
-    rdata.name |> create_domain_name
+    create_domain_name(rdata.name)
   end
 
   def create_rdata(rdata, :cname, _) do
-    rdata.name |> create_domain_name
+    create_domain_name(rdata.name)
   end
 
   def create_rdata(rdata, :soa, _) do
-    (rdata.mname |> create_domain_name) <>
-    (rdata.rname |> create_domain_name) <>
+    create_domain_name(rdata.mname) <>
+    create_domain_name(rdata.rname) <>
     <<rdata.serial ::32,
       rdata.refresh::32,
       rdata.retry  ::32,
@@ -69,15 +66,15 @@ defmodule DNSpacket do
   end
 
   def create_rdata(rdata, :ptr, _) do
-    rdata.name |> create_domain_name
+    create_domain_name(rdata.name)
   end
 
   def create_rdata(rdata, :mx, _) do
-    <<rdata.preference::16>> <> (rdata.name |> create_domain_name)
+    <<rdata.preference::16>> <> create_domain_name(rdata.name)
   end
 
   def create_rdata(rdata, :txt, _) do
-    rdata.txt |> create_character_string
+    create_character_string(rdata.txt)
   end
 
   def create_rdata(rdata, :aaaa, :in) do
@@ -85,33 +82,26 @@ defmodule DNSpacket do
   end
 
   # EDNS0
-  def create_opt_rr(option, result \\ <<>>)
-
-  def create_opt_rr([], result) do
-    result
-  end
+  def create_opt_rr(option), do: create_opt_rr(option, <<>>)
+  def create_opt_rr([], result), do: result
 
   def create_opt_rr([option| tail], result) do
-    # XXX
+    # FIXME
     item = option
-    tail |> create_opt_rr(result <> item)
+    create_opt_rr(tail, result <> item)
   end
 
-  defp add_rdlength(rdata) do
-    <<byte_size(rdata)::16>> <> rdata
-  end
+  defp add_rdlength(rdata), do: <<byte_size(rdata)::16>> <> rdata
 
   def create_domain_name(name) do
     name
     |> String.split(".")
-    |> Enum.map(fn n -> n |> create_character_string end)
+    |> Enum.map(fn n -> create_character_string(n) end)
     |> concat_binary_list
   end
   
-  def create_character_string(txt) do
-    <<String.length(txt)::8, txt::binary>>
-  end
-
+  def create_character_string(txt), do: <<String.length(txt)::8, txt::binary>>
+  
   def parse(
     <<
     id      :: unsigned-integer-size(16),
@@ -132,10 +122,10 @@ defmodule DNSpacket do
     body    :: binary,
     >> = orig_body) do
     
-    {body, _, _, question}   = body |> parse_question(qdcount, orig_body, [])
-    {body, _, _, answer}     = body |> parse_answer(ancount, orig_body, [])
-    {body, _, _, authority}  = body |> parse_answer(nscount, orig_body, [])
-    {_,    _, _, additional} = body |> parse_answer(arcount, orig_body, [])
+    {body, _, _, question}   = parse_question(body, qdcount, orig_body, [])
+    {body, _, _, answer}     = parse_answer(body, ancount, orig_body, [])
+    {body, _, _, authority}  = parse_answer(body, nscount, orig_body, [])
+    {_,    _, _, additional} = parse_answer(body, arcount, orig_body, [])
 
     %{
       id: id,
@@ -160,32 +150,28 @@ defmodule DNSpacket do
     }
   end
 
-  def parse_question(body, 0, orig_body, result) do
-    {body, 0, orig_body, result}
-  end
+  def parse_question(body, 0, orig_body, result), do: {body, 0, orig_body, result}
   
   def parse_question(body, count, orig_body, result) do
-    {body, _, qname} = body |> parse_name(orig_body, "")
+    {body, _, qname} = parse_name(body, orig_body, "")
     <<
     qtype  :: unsigned-integer-size(16),
     qclass :: unsigned-integer-size(16),
     body   :: binary,
     >> = body
-    body |> parse_question(count - 1, orig_body, 
+    parse_question(body, count - 1, orig_body, 
       [%{qname: qname, qtype: DNS.type[qtype], qclass: DNS.class[qclass]} | result])
   end
   
-  def parse_answer(body, 0, orig_body, result) do
-    {body, 0, orig_body, result}
-  end
+  def parse_answer(body, 0, orig_body, result), do: {body, 0, orig_body, result}
 
   def parse_answer(body, count, orig_body, result) do
-    {body, _, name} = body |> parse_name(orig_body, "")
+    {body, _, name} = parse_name(body, orig_body, "")
     <<
     type :: unsigned-integer-size(16),
     body :: binary,
     >> = body
-    body |> parse_answer_checkopt(type, name, count, orig_body, result) 
+    parse_answer_checkopt(body, type, name, count, orig_body, result) 
   end
 
   # OPT Record
@@ -198,7 +184,7 @@ defmodule DNSpacket do
                               rdata    :: binary-size(rdlength),
                               body     :: binary>>,
     41, name, count, orig_body, result) do
-    body |> parse_answer(count - 1, orig_body, 
+    parse_answer(body, count - 1, orig_body, 
       [%{
           name: name,
           type: :opt,
@@ -208,7 +194,7 @@ defmodule DNSpacket do
           d0: d0,
           z: z,
           rdlength: rdlength,
-          rdata: [] |> parse_opt_rr(rdata),
+          rdata: parse_opt_rr([], rdata),
        }  | result])
   end
 
@@ -218,32 +204,37 @@ defmodule DNSpacket do
                               rdata    :: binary-size(rdlength),
                               body     :: binary>>,
     type, name, count, orig_body, result) do
-    body |> parse_answer(count - 1, orig_body, 
+    parse_answer(body, count - 1, orig_body, 
       [%{
           name: name,
           type: DNS.type[type],
           class: DNS.class[class],
           ttl: ttl,
           rdlength: rdlength,
-          rdata: rdata |> parse_rdata(DNS.type[type] || type, DNS.class[class] || class, orig_body)
+          rdata: parse_rdata(rdata, DNS.type[type] || type, DNS.class[class] || class, orig_body)
        }  | result])
   end
 
-  defp parse_name(<<0x0::size(8),body::binary>>, orig_body, ""), do: {body, orig_body, "."}
-  defp parse_name(<<0x0::size(8),body::binary>>, orig_body, result), do: {body, orig_body, result}
+  defp parse_name(<<0x0::size(8),body::binary>>, orig_body, "") do
+    {body, orig_body, "."}
+  end
+  
+  defp parse_name(<<0x0::size(8),body::binary>>, orig_body, result) do
+    {body, orig_body, result}
+  end
 
   defp parse_name(<<0b11   :: unsigned-integer-size(2),
                     offset :: unsigned-integer-size(14),
                     body   :: binary>>, orig_body, result) do
     <<_::binary-size(offset), tmp_body::binary>> = orig_body
-    {_, _, name} = tmp_body |> parse_name(orig_body, result)
+    {_, _, name} = parse_name(tmp_body, orig_body, result)
     {body, orig_body, name}
   end
 
   defp parse_name(<<length :: unsigned-integer-size(8),
                     name   :: binary-size(length),
                     body   :: binary>>, orig_body, result) do
-    body |> parse_name(orig_body, result <> name <> ".")
+    parse_name(body, orig_body, result <> name <> ".")
   end
 
   def parse_rdata(<<a1::8,a2::8,a3::8,a4::8>>, :a, :in, _) do
@@ -253,22 +244,22 @@ defmodule DNSpacket do
   end
 
   def parse_rdata(rdata, :ns, _, orig_body) do
-    {_, _, name} = rdata |> parse_name(orig_body, "")
+    {_, _, name} = parse_name(rdata, orig_body, "")
     %{
       name: name,
     }
   end
 
   def parse_rdata(rdata, :cname, _, orig_body) do
-    {_, _, name} = rdata |> parse_name(orig_body, "")
+    {_, _, name} = parse_name(rdata, orig_body, "")
     %{
       name: name,
     }
   end
 
   def parse_rdata(rdata, :soa, _, orig_body) do
-    {rdata, _, mname} = rdata |> parse_name(orig_body, "")
-    {rdata, _, rname} = rdata |> parse_name(orig_body, "")
+    {rdata, _, mname} = parse_name(rdata, orig_body, "")
+    {rdata, _, rname} = parse_name(rdata, orig_body, "")
     <<
     serial  :: unsigned-integer-size(32),
     refresh :: unsigned-integer-size(32),
@@ -288,7 +279,7 @@ defmodule DNSpacket do
   end
   
   def parse_rdata(rdata, :ptr, _, orig_body) do
-    {_, _, name} = rdata |> parse_name(orig_body, "")
+    {_, _, name} = parse_name(rdata, orig_body, "")
     %{
       name: name,
     }
@@ -304,16 +295,16 @@ defmodule DNSpacket do
     }
   end
 
-
   def parse_rdata(<<preference :: unsigned-integer-size(16),
                    tmp_body    :: binary>>, :mx, _, orig_body) do
-    {_, _, name} = tmp_body |> parse_name(orig_body, "")
+    {_, _, name} = parse_name(tmp_body, orig_body, "")
     %{
       preference: preference,
       name: name,
     }
   end
 
+  # FIXME
   # does not support multiple character strings TXT record
   def parse_rdata(<<length :: unsigned-integer-size(8),
                     txt    :: binary-size(length), _::binary>>, :txt, _, _) do
@@ -354,10 +345,14 @@ defmodule DNSpacket do
     data   :: binary-size(length),
     opt_rr :: binary,
     >>) do
-    [parse_opt_code(DNS.option[code], data) | result] |> parse_opt_rr(opt_rr)
+    parse_opt_rr([parse_opt_code(DNS.option[code], data) | result], opt_rr)
   end
 
   def parse_opt_code(:edns_client_subnet, <<family::16,source::8,scope::8,address::binary>>) do
     %{code: :edns_client_subnet, family: family, souce: source, scope: scope, addr: address}
+  end
+
+  def parse_opt_code(:extended_dns_error, <<option_code::16,_length::16,info_code::16,txt::binary>>) do
+    %{code: :extended_dns_error, option_code: option_code, info_code: info_code, txt: txt}
   end
 end
