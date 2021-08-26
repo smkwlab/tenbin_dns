@@ -31,15 +31,23 @@ defmodule DNSpacket do
   end
 
   # EDNS0
-  def create_rr(%{type: :opt, size: size, rcode: rcode, rdata: rdata}) do
-    <<0, DNS.type[:opt]::16, size::16, rcode::32>> <>
-    <<rdata |> create_opt_rr |> add_rdlength>>
+  def create_rr(%{type: :opt} = rr) do
+    <<0, DNS.type[:opt]::16, rr.bufsize::16, rr.ex_rcode::8, rr.version::8, rr.dnssec::1, rr.z::15>> <>
+      (rr.options
+      |> Enum.map(&(create_options(&1)))
+      |> concat_binary_list
+      |> add_rdlength)
   end
 
-  def create_rr(%{name: name, type: type, class: class, ttl: ttl, rdata: rdata}) do
-    create_domain_name(name) <>
-    <<DNS.type[type]::16, DNS.class[class]::16, ttl::32>> <> 
-    (rdata |> create_rdata(type, class) |> add_rdlength)
+  def create_rr(rr) do
+    create_domain_name(rr.name) <>
+    <<DNS.type[rr.type]::16, DNS.class[rr.class]::16, rr.ttl::32>> <> 
+    (rr.rdata |> create_rdata(rr.type, rr.class) |> add_rdlength)
+  end
+
+  # FIXME
+  def create_options(_) do
+    ""
   end
 
   def create_rdata(rdata, :a, :in) do
@@ -176,9 +184,9 @@ defmodule DNSpacket do
 
   # OPT Record
   def parse_answer_checkopt(<<size     :: unsigned-integer-size(16),
-                              rcode    :: unsigned-integer-size(8),
+                              ex_rcode :: unsigned-integer-size(8),
                               version  :: unsigned-integer-size(8),
-                              d0       :: size(1),
+                              dnssec   :: size(1),
                               z        :: size(15),
                               rdlength :: unsigned-integer-size(16),
                               rdata    :: binary-size(rdlength),
@@ -189,9 +197,9 @@ defmodule DNSpacket do
           name: name,
           type: :opt,
           payload_size: size,
-          extended_rcode: rcode,
+          ex_rcode: ex_rcode,
           version: version,
-          d0: d0,
+          dnssec: dnssec,
           z: z,
           rdlength: rdlength,
           rdata: parse_opt_rr([], rdata),
@@ -349,7 +357,7 @@ defmodule DNSpacket do
   end
 
   def parse_opt_code(:edns_client_subnet, <<family::16,source::8,scope::8,address::binary>>) do
-    %{code: :edns_client_subnet, family: family, souce: source, scope: scope, addr: address}
+    %{code: :edns_client_subnet, family: family, source: source, scope: scope, addr: address}
   end
 
   def parse_opt_code(:extended_dns_error, <<option_code::16,_length::16,info_code::16,txt::binary>>) do
