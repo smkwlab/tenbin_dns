@@ -225,4 +225,5 @@ defmodule DNS do
   def port(), do: 53
   def service(), do: "domain"
 
+  def edns_max_udpsize(), do: 1232
 end
