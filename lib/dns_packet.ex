@@ -51,7 +51,11 @@ defmodule DNSpacket do
   end
 
   def create_rdata(rdata, :a, :in) do
+    <<
     rdata.addr
+    |> Tuple.to_list()
+    |> Enum.reduce(0, fn (n, acc) -> acc * 0x100 + n end)
+    ::32>>
   end
 
   def create_rdata(rdata, :ns, _) do
@@ -86,7 +90,12 @@ defmodule DNSpacket do
   end
 
   def create_rdata(rdata, :aaaa, :in) do
+    <<
     rdata.addr
+    |> Tuple.to_list()
+    |> Enum.reduce(0, fn (n, acc) -> acc * 0x10000 + n end)
+    ::128
+    >>
   end
 
   # EDNS0

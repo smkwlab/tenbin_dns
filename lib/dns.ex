@@ -1,4 +1,8 @@
 defmodule DNS do
+  @moduledoc """
+  DNS related constants
+  """
+
   def type() do
     %{
       1 => :a,
@@ -75,13 +79,11 @@ defmodule DNS do
       :svcb => 64,
       65 => :https,
       :https => 65,
-
       252 => :axfr,
       :axfr => 252,
       255 => :all,
       :all => 255,
       :any => 255,
-
       257 => :caa,
       :caa => 257
     }
@@ -101,8 +103,8 @@ defmodule DNS do
       :none => 254,
       255 => :any,
       :any => 255,
-      65536 => :max,
-      :max => 65536,
+      65_536 => :max,
+      :max => 65_536
     }
   end
 
@@ -148,7 +150,7 @@ defmodule DNS do
       22 => :badtrunc,
       :badtrunc => 22,
       23 => :badcookie,
-      :badcookie => 23,
+      :badcookie => 23
     }
   end
 
@@ -177,7 +179,7 @@ defmodule DNS do
       :badcookie => "Bad/missing Server Cookie"
     }
   end
-  
+
   def option() do
     %{
       0 => :reserved0,
@@ -216,12 +218,11 @@ defmodule DNS do
       :edns_client_tag => 16,
       17 => :edns_server_tag,
       :edns_server_tag => 17,
-
-      26946 => :deviceid,
-      :deviceid => 26946,
+      26_946 => :deviceid,
+      :deviceid => 26_946
     }
   end
-  
+
   def port(), do: 53
   def service(), do: "domain"
 
