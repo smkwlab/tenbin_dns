@@ -28,7 +28,7 @@ defmodule TenbinDnsTest do
         type: :a,
         class: :in,
         ttl: 86_331,
-        rdata: %{addr: <<127, 0, 0, 1>>}
+        rdata: %{addr: {127, 0, 0, 1}}
       }
 
       assert DNSpacket.create_rr(answer_a) ==
