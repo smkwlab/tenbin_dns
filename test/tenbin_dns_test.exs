@@ -50,13 +50,10 @@ defmodule TenbinDnsTest do
     end
 
     test "create packet" do
-      packet = %{
+      packet = %DNSpacket{
         id: 0x1825,
-        flags: 0x0100,
+        rd: 1,
         question: [%{qname: "gmail.com.", qtype: :all, qclass: :in}],
-        answer: [],
-        authority: [],
-        additional: []
       }
 
       assert DNSpacket.create(packet) ==
@@ -69,9 +66,11 @@ defmodule TenbinDnsTest do
     setup do
       [
         packet:
-          DNSpacket.create(%{
+          DNSpacket.create(%DNSpacket{
             id: 0x1825,
-            flags: 0x8180,
+            qr: 1,
+            rd: 1,
+            ra: 1,
             question: [%{qname: "gmail.com.", qtype: :all, qclass: :in}],
             answer: [
               %{
@@ -90,8 +89,6 @@ defmodule TenbinDnsTest do
                 }
               }
             ],
-            authority: [],
-            additional: []
           })
       ]
     end
