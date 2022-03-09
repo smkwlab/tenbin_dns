@@ -50,8 +50,8 @@ defmodule DNSpacket do
 
   # EDNS0
   def create_rr(%{type: :opt} = rr) do
-    <<0, DNS.type[:opt]::16, rr.bufsize::16, rr.ex_rcode::8, rr.version::8, rr.dnssec::1, rr.z::15>> <>
-      (rr.options
+    <<0, DNS.type[:opt]::16, rr.payload_size::16, rr.ex_rcode::8, rr.version::8, rr.dnssec::1, rr.z::15>> <>
+      (rr.rdata
       |> Enum.map(&(create_options(&1)))
       |> concat_binary_list
       |> add_rdlength)
@@ -205,7 +205,7 @@ defmodule DNSpacket do
     parse_answer_checkopt(body, type, name, count, orig_body, result)
   end
 
-  # OPT Record
+  # OPT Record : 41
   def parse_answer_checkopt(<<size     :: unsigned-integer-size(16),
                               ex_rcode :: unsigned-integer-size(8),
                               version  :: unsigned-integer-size(8),
