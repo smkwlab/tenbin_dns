@@ -162,7 +162,7 @@ defmodule DNSpacket do
     {body, _, _, authority}  = parse_answer(body, nscount, orig_body, [])
     {_,    _, _, additional} = parse_answer(body, arcount, orig_body, [])
 
-    %{
+    %DNSpacket{
       id: id,
       qr: qr,
       opcode: opcode,
@@ -174,10 +174,6 @@ defmodule DNSpacket do
       ad: ad,
       cd: cd,
       rcode: rcode,
-      qdcount: qdcount,
-      ancount: ancount,
-      nscount: nscount,
-      arcount: arcount,
       question: question,
       answer: answer,
       authority: authority,
