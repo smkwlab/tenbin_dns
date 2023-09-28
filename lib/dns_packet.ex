@@ -386,4 +386,13 @@ defmodule DNSpacket do
   def parse_opt_code(:extended_dns_error, <<option_code::16,_length::16,info_code::16,txt::binary>>) do
     %{code: :extended_dns_error, option_code: option_code, info_code: info_code, txt: txt}
   end
+
+  def parse_opt_code(:cookie, cookie) do
+    dbg(cookie)
+    %{code: :cookie, cookie: cookie}
+  end
+
+  def parse_opt_code(code, data) do
+    %{code: code, data: data}
+  end
 end
