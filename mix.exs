@@ -4,8 +4,8 @@ defmodule TenbinDns.MixProject do
   def project do
     [
       app: :tenbin_dns,
-      version: "0.3.2",
-      elixir: "~> 1.12",
+      version: "0.3.3",
+      elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -21,8 +21,8 @@ defmodule TenbinDns.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
+      {:credo, "~> 1.7.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4.1", only: [:dev], runtime: false},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false},
       {:inch_ex, github: "rrrene/inch_ex", only: [:dev, :test]}
       # {:dep_from_hexpm, "~> 0.3.0"},
