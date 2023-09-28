@@ -388,7 +388,6 @@ defmodule DNSpacket do
   end
 
   def parse_opt_code(:cookie, cookie) do
-    dbg(cookie)
     %{code: :cookie, cookie: cookie}
   end
 
