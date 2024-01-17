@@ -394,4 +394,18 @@ defmodule DNSpacket do
   def parse_opt_code(code, data) do
     %{code: code, data: data}
   end
+
+  def check_ecs([]), do: %{family: 0, scope: 0, addr: 0, source: 0}
+  def check_ecs(additional) do
+    additional
+    |> Enum.reduce_while(%{rdata: []},
+      fn %{type: :opt} = o, _acc -> {:halt, o}
+        _, acc -> {:cont, acc}
+    end)
+    |> Map.get(:rdata)
+    |> Enum.reduce_while(%{family: 0, scope: 0, addr: 0, source: 0},
+      fn %{code: :edns_client_subnet} = e, _acc -> {:halt, e}
+        _, acc -> {:cont, acc}
+    end)
+  end
 end
