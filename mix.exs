@@ -4,7 +4,7 @@ defmodule TenbinDns.MixProject do
   def project do
     [
       app: :tenbin_dns,
-      version: "0.3.5",
+      version: "0.4.0",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps()
