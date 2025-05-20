@@ -39,7 +39,7 @@ defmodule DNSpacket do
           :qtype => any
         }) :: <<_::32, _::_*8>>
   def create_question_item(%{qname: qname, qtype: qtype, qclass: qclass}) do
-    create_domain_name(qname) <> <<DNS.type[qtype]::16, DNS.class[qclass]::16>>
+    create_domain_name(qname) <> <<DNS.type_code(qtype)::16, DNS.class_code(qclass)::16>>
   end
 
   def create_answer(answer) do
@@ -50,7 +50,7 @@ defmodule DNSpacket do
 
   # EDNS0
   def create_rr(%{type: :opt} = rr) do
-    <<0, DNS.type[:opt]::16, rr.payload_size::16, rr.ex_rcode::8, rr.version::8, rr.dnssec::1, rr.z::15>> <>
+    <<0, DNS.type_code(:opt)::16, rr.payload_size::16, rr.ex_rcode::8, rr.version::8, rr.dnssec::1, rr.z::15>> <>
       (rr.rdata
       |> Enum.map(&(create_options(&1)))
       |> concat_binary_list
@@ -59,7 +59,7 @@ defmodule DNSpacket do
 
   def create_rr(rr) do
     create_domain_name(rr.name) <>
-    <<DNS.type[rr.type]::16, DNS.class[rr.class]::16, rr.ttl::32>> <>
+    <<DNS.type_code(rr.type)::16, DNS.class_code(rr.class)::16, rr.ttl::32>> <>
     (rr.rdata |> create_rdata(rr.type, rr.class) |> add_rdlength)
   end
 
@@ -191,7 +191,7 @@ defmodule DNSpacket do
     body   :: binary,
     >> = body
     parse_question(body, count - 1, orig_body,
-      [%{qname: qname, qtype: DNS.type[qtype], qclass: DNS.class[qclass]} | result])
+      [%{qname: qname, qtype: DNS.type(qtype), qclass: DNS.class(qclass)} | result])
   end
 
   def parse_answer(body, 0, orig_body, result), do: {body, 0, orig_body, result}
@@ -238,11 +238,11 @@ defmodule DNSpacket do
     parse_answer(body, count - 1, orig_body,
       [%{
           name: name,
-          type: DNS.type[type],
-          class: DNS.class[class],
+          type: DNS.type(type),
+          class: DNS.class(class),
           ttl: ttl,
           rdlength: rdlength,
-          rdata: parse_rdata(rdata, DNS.type[type] || type, DNS.class[class] || class, orig_body)
+          rdata: parse_rdata(rdata, DNS.type(type) || type, DNS.class(class) || class, orig_body)
        }  | result])
   end
 
@@ -376,7 +376,7 @@ defmodule DNSpacket do
     data   :: binary-size(length),
     opt_rr :: binary,
     >>) do
-    parse_opt_rr([parse_opt_code(DNS.option[code], data) | result], opt_rr)
+    parse_opt_rr([parse_opt_code(DNS.option(code), data) | result], opt_rr)
   end
 
   def parse_opt_code(:edns_client_subnet, <<family::16,source::8,scope::8,address::binary>>) do
