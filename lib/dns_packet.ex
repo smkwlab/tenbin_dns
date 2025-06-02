@@ -25,7 +25,7 @@ defmodule DNSpacket do
       create_answer(packet.additional)
   end
 
-  def concat_binary_list(list), do: Enum.reduce(list, <<>>, fn i, acc -> acc <> i end)
+  def concat_binary_list(list), do: :erlang.iolist_to_binary(list)
 
   def create_question(question) do
     question
@@ -68,12 +68,8 @@ defmodule DNSpacket do
     ""
   end
 
-  def create_rdata(rdata, :a, :in) do
-    <<
-    rdata.addr
-    |> Tuple.to_list()
-    |> Enum.reduce(0, fn (n, acc) -> acc * 0x100 + n end)
-    ::32>>
+  def create_rdata(%{addr: {a, b, c, d}}, :a, :in) do
+    <<a::8, b::8, c::8, d::8>>
   end
 
   def create_rdata(rdata, :ns, _) do
@@ -107,13 +103,8 @@ defmodule DNSpacket do
     create_character_string(rdata.txt)
   end
 
-  def create_rdata(rdata, :aaaa, :in) do
-    <<
-    rdata.addr
-    |> Tuple.to_list()
-    |> Enum.reduce(0, fn (n, acc) -> acc * 0x10000 + n end)
-    ::128
-    >>
+  def create_rdata(%{addr: {a1, a2, a3, a4, a5, a6, a7, a8}}, :aaaa, :in) do
+    <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>
   end
 
   # EDNS0
@@ -135,7 +126,7 @@ defmodule DNSpacket do
     |> concat_binary_list
   end
 
-  def create_character_string(txt), do: <<String.length(txt)::8, txt::binary>>
+  def create_character_string(txt), do: <<byte_size(txt)::8, txt::binary>>
 
   def parse(
     <<
@@ -397,15 +388,11 @@ defmodule DNSpacket do
 
   def check_ecs([]), do: %{family: 0, scope: 0, addr: 0, source: 0}
   def check_ecs(additional) do
-    additional
-    |> Enum.reduce_while(%{rdata: []},
-      fn %{type: :opt} = o, _acc -> {:halt, o}
-        _, acc -> {:cont, acc}
-    end)
-    |> Map.get(:rdata)
-    |> Enum.reduce_while(%{family: 0, scope: 0, addr: 0, source: 0},
-      fn %{code: :edns_client_subnet} = e, _acc -> {:halt, e}
-        _, acc -> {:cont, acc}
-    end)
+    case Enum.find(additional, &match?(%{type: :opt}, &1)) do
+      %{rdata: rdata} ->
+        Enum.find(rdata, %{family: 0, scope: 0, addr: 0, source: 0}, 
+                  &match?(%{code: :edns_client_subnet}, &1))
+      _ -> %{family: 0, scope: 0, addr: 0, source: 0}
+    end
   end
 end

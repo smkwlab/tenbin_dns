@@ -3,7 +3,10 @@
     "allow": [
       "Bash(mix test:*)",
       "Bash(open cover/index.html)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(mix deps.get:*)",
+      "Bash(timeout 60 mix run bench/quick_bench.exs)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }

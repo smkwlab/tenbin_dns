@@ -110,13 +110,37 @@ defmodule DNS do
   @type_map Map.new(@type_pairs)
   @type_reverse_map Map.new(@type_pairs, fn {k, v} -> {v, k} end)
 
+  # Optimized pattern matching for most common DNS types
+  def type(1), do: :a
+  def type(2), do: :ns  
+  def type(5), do: :cname
+  def type(15), do: :mx
+  def type(16), do: :txt
+  def type(28), do: :aaaa
+  def type(41), do: :opt
+  def type(255), do: :any
   def type(num), do: Map.get(@type_map, num)
+
+  def type_code(:a), do: 1
+  def type_code(:ns), do: 2
+  def type_code(:cname), do: 5
+  def type_code(:mx), do: 15
+  def type_code(:txt), do: 16
+  def type_code(:aaaa), do: 28
+  def type_code(:opt), do: 41
+  def type_code(:any), do: 255
   def type_code(atom), do: Map.get(@type_reverse_map, atom)
 
   @class_map Map.new(@class_pairs)
   @class_reverse_map Map.new(@class_pairs, fn {k, v} -> {v, k} end)
 
+  # Optimized pattern matching for most common DNS classes
+  def class(1), do: :in
+  def class(255), do: :any
   def class(num), do: Map.get(@class_map, num)
+
+  def class_code(:in), do: 1
+  def class_code(:any), do: 255
   def class_code(atom), do: Map.get(@class_reverse_map, atom)
 
   @rcode_map Map.new(@rcode_pairs)
