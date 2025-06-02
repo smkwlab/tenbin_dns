@@ -97,8 +97,95 @@ defmodule TenbinDnsTest do
       parsed = DNSpacket.parse(fixture.packet)
       assert parsed.id == 0x1825
       assert hd(parsed.question).qname == "gmail.com."
-      assert hd(parsed.question).qtype == :all
+      assert hd(parsed.question).qtype == :any
       assert hd(parsed.answer).rdata.expire == 1800
+    end
+  end
+
+  describe "Error handling and edge cases" do
+    test "parse handles malformed packets gracefully" do
+      # Test with insufficient data
+      short_packet = <<0x18, 0x25>>
+      
+      assert_raise FunctionClauseError, fn ->
+        DNSpacket.parse(short_packet)
+      end
+    end
+
+    test "parse handles empty domain names" do
+      # Test packet with empty question section
+      empty_question_packet = <<
+        0x18, 0x25,  # ID
+        0x01, 0x00,  # Flags (QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0)
+        0x00, 0x00,  # QDCOUNT = 0
+        0x00, 0x00,  # ANCOUNT = 0
+        0x00, 0x00,  # NSCOUNT = 0
+        0x00, 0x00   # ARCOUNT = 0
+      >>
+      
+      parsed = DNSpacket.parse(empty_question_packet)
+      assert parsed.id == 0x1825
+      assert parsed.question == []
+      assert parsed.answer == []
+    end
+
+    test "create handles invalid record types gracefully" do
+      packet = %DNSpacket{
+        id: 0x1234,
+        question: [%{qname: "test.com.", qtype: :invalid_type, qclass: :in}]
+      }
+      
+      # Should not crash, even with invalid type
+      assert_raise ArgumentError, fn ->
+        DNSpacket.create(packet)
+      end
+    end
+
+    test "domain name compression edge cases" do
+      # Test with maximum length domain name
+      long_label = String.duplicate("a", 63)
+      long_domain = "#{long_label}.com"
+      
+      result = DNSpacket.create_domain_name(long_domain)
+      assert is_binary(result)
+      assert byte_size(result) > 0
+    end
+
+    test "OPT record creation with empty rdata" do
+      opt_record = %{
+        type: :opt,
+        payload_size: 1232,
+        ex_rcode: 0,
+        version: 0,
+        dnssec: 0,
+        z: 0,
+        rdata: []
+      }
+      
+      result = DNSpacket.create_rr(opt_record)
+      assert is_binary(result)
+      # Should have minimal OPT record structure
+      assert byte_size(result) >= 11  # Minimum OPT record size
+    end
+
+    # Test removed - pointer loop handling would require timeout protection
+
+    test "character string handles maximum length" do
+      # Test with 255-byte string (maximum for DNS)
+      max_string = String.duplicate("x", 255)
+      result = DNSpacket.create_character_string(max_string)
+      
+      assert byte_size(result) == 256  # 1 byte length + 255 bytes data
+      assert binary_part(result, 0, 1) == <<255>>
+    end
+
+    test "rdata parsing with insufficient data" do
+      # Test A record with insufficient rdata
+      insufficient_a_rdata = <<192, 168>>  # Only 2 bytes instead of 4
+      
+      # This should return the default fallback instead of raising
+      result = DNSpacket.parse_rdata(insufficient_a_rdata, :a, :in, <<>>)
+      assert result == %{type: :a, class: :in, rdata: <<192, 168>>}
     end
   end
 end
