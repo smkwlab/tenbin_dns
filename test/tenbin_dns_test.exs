@@ -53,12 +53,12 @@ defmodule TenbinDnsTest do
       packet = %DNSpacket{
         id: 0x1825,
         rd: 1,
-        question: [%{qname: "gmail.com.", qtype: :all, qclass: :in}],
+        question: [%{qname: "gmail.com.", qtype: :any, qclass: :in}],
       }
 
       assert DNSpacket.create(packet) ==
                <<0x18, 0x25, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 5, 0x67, 0x6D, 0x61, 0x69, 0x6C, 3,
-                 0x63, 0x6F, 0x6D, 0, 0, 0xFF, 0, 1>>
+                 0x63, 0x6F, 0x6D, 0, 0, 255, 0, 1>>
     end
   end
 
@@ -71,7 +71,7 @@ defmodule TenbinDnsTest do
             qr: 1,
             rd: 1,
             ra: 1,
-            question: [%{qname: "gmail.com.", qtype: :all, qclass: :in}],
+            question: [%{qname: "gmail.com.", qtype: :any, qclass: :in}],
             answer: [
               %{
                 name: "gmail.com.",

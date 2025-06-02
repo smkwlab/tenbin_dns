@@ -1,28 +1,44 @@
 defmodule DNSpacket do
+  # Inline frequently called small functions for better performance
+  @compile {:inline, [
+    create_character_string: 1,
+    add_rdlength: 1,
+    concat_binary_list: 1
+  ]}
+
   defstruct id: 0, qr: 0, opcode: 0, aa: 0, tc: 0, rd: 0, ra: 0, z: 0, ad: 0, cd: 0, rcode: 0,
                question: [], answer: [], authority: [], additional: []
 
   @spec create(%DNSpacket{}) :: <<_::64, _::_*8>>
   def create(packet) do
-    <<packet.id                ::16,
-      packet.qr                ::1,
-      packet.opcode            ::4,
-      packet.aa                ::1,
-      packet.tc                ::1,
-      packet.rd                ::1,
-      packet.ra                ::1,
-      packet.z                 ::1,
-      packet.ad                ::1,
-      packet.cd                ::1,
-      packet.rcode             ::4,
-      length(packet.question)  ::16,
-      length(packet.answer)    ::16,
-      length(packet.authority) ::16,
-      length(packet.additional)::16>> <>
-      create_question(packet.question) <>
-      create_answer(packet.answer) <>
-      create_answer(packet.authority) <>
+    create_optimized(packet)
+  end
+
+  # Optimized packet creation using iolists to reduce memory allocations
+  defp create_optimized(packet) do
+    header = <<packet.id                ::16,
+               packet.qr                ::1,
+               packet.opcode            ::4,
+               packet.aa                ::1,
+               packet.tc                ::1,
+               packet.rd                ::1,
+               packet.ra                ::1,
+               packet.z                 ::1,
+               packet.ad                ::1,
+               packet.cd                ::1,
+               packet.rcode             ::4,
+               length(packet.question)  ::16,
+               length(packet.answer)    ::16,
+               length(packet.authority) ::16,
+               length(packet.additional)::16>>
+    
+    [
+      header,
+      create_question(packet.question),
+      create_answer(packet.answer),
+      create_answer(packet.authority),
       create_answer(packet.additional)
+    ] |> :erlang.iolist_to_binary()
   end
 
   def concat_binary_list(list), do: :erlang.iolist_to_binary(list)
@@ -122,7 +138,7 @@ defmodule DNSpacket do
   def create_domain_name(name) do
     name
     |> String.split(".")
-    |> Enum.map(fn n -> create_character_string(n) end)
+    |> Enum.map(&create_character_string/1)
     |> concat_binary_list
   end
 

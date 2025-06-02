@@ -3,123 +3,135 @@ defmodule DNS do
   DNS related constants
   """
 
-  # type定義
-  @type_pairs [
-    {1, :a},
-    {2, :ns},
-    {3, :md},
-    {4, :mf},
-    {5, :cname},
-    {6, :soa},
-    {7, :mb},
-    {8, :mg},
-    {9, :mr},
-    {10, :null},
-    {11, :wks},
-    {12, :ptr},
-    {13, :hinfo},
-    {14, :minfo},
-    {15, :mx},
-    {16, :txt},
-    {17, :rp},
-    {18, :afsdb},
-    {19, :x25},
-    {20, :isdn},
-    {21, :rt},
-    {22, :nsap},
-    {23, :nsap_ptr},
-    {24, :sig},
-    {25, :key},
-    {26, :px},
-    {27, :gpos},
-    {28, :aaaa},
-    {29, :loc},
-    {30, :nxt},
-    {31, :eid},
-    {32, :nimloc},
-    {33, :srv},
-    {34, :atma},
-    {41, :opt},
-    {64, :svcb},
-    {65, :https},
-    {252, :axfr},
-    {255, :all},
-    {255, :any},
-    {257, :caa}
-  ]
+  # Inline DNS constant lookups for maximum performance
+  @compile {:inline, [
+    type: 1,
+    type_code: 1,
+    class: 1,
+    class_code: 1,
+    rcode: 1,
+    rcode_code: 1,
+    option: 1,
+    option_code: 1
+  ]}
 
-  # class定義
-  @class_pairs [
-    {1, :in},
-    {2, :cs},
-    {3, :ch},
-    {4, :hs},
-    {254, :none},
-    {255, :any},
-    {65_536, :max}
-  ]
+  # Pre-compile lookup maps for better performance
+  @type_map %{
+    1 => :a,
+    2 => :ns,
+    3 => :md,
+    4 => :mf,
+    5 => :cname,
+    6 => :soa,
+    7 => :mb,
+    8 => :mg,
+    9 => :mr,
+    10 => :null,
+    11 => :wks,
+    12 => :ptr,
+    13 => :hinfo,
+    14 => :minfo,
+    15 => :mx,
+    16 => :txt,
+    17 => :rp,
+    18 => :afsdb,
+    19 => :x25,
+    20 => :isdn,
+    21 => :rt,
+    22 => :nsap,
+    23 => :nsap_ptr,
+    24 => :sig,
+    25 => :key,
+    26 => :px,
+    27 => :gpos,
+    28 => :aaaa,
+    29 => :loc,
+    30 => :nxt,
+    31 => :eid,
+    32 => :nimloc,
+    33 => :srv,
+    34 => :atma,
+    41 => :opt,
+    64 => :svcb,
+    65 => :https,
+    252 => :axfr,
+    255 => :any,
+    257 => :caa
+  }
 
-  # rcode定義
-  @rcode_pairs [
-    {0, :noerror},
-    {1, :formerr},
-    {2, :servfail},
-    {3, :nxdomain},
-    {4, :notimp},
-    {5, :refused},
-    {6, :yxdomain},
-    {7, :yxrrset},
-    {8, :nxrrset},
-    {9, :notauth},
-    {10, :notzone},
-    {11, :dsotypeni},
-    {16, :badvers},
-    {16, :badsig},
-    {17, :badkey},
-    {18, :badtime},
-    {19, :badmode},
-    {20, :badname},
-    {21, :badalg},
-    {22, :badtrunc},
-    {23, :badcookie}
-  ]
+  @type_code_map for {k, v} <- @type_map, into: %{}, do: {v, k}
 
-  # option定義
-  @option_pairs [
-    {0, :reserved0},
-    {1, :llq},
-    {2, :ul},
-    {3, :nsid},
-    {4, :reserved4},
-    {5, :dau},
-    {6, :dhu},
-    {7, :n3u},
-    {8, :edns_client_subnet},
-    {9, :edns_expire},
-    {10, :cookie},
-    {11, :edns_tcp_keepalive},
-    {12, :padding},
-    {13, :chain},
-    {14, :edns_key_tag},
-    {15, :extended_dns_error},
-    {16, :edns_client_tag},
-    {17, :edns_server_tag},
-    {26_946, :deviceid}
-  ]
+  @class_map %{
+    1 => :in,
+    2 => :cs,
+    3 => :ch,
+    4 => :hs,
+    254 => :none,
+    255 => :any,
+    65_536 => :max
+  }
 
-  @type_map Map.new(@type_pairs)
-  @type_reverse_map Map.new(@type_pairs, fn {k, v} -> {v, k} end)
+  @class_code_map for {k, v} <- @class_map, into: %{}, do: {v, k}
 
-  # Optimized pattern matching for most common DNS types
+  @rcode_map %{
+    0 => :noerror,
+    1 => :formerr,
+    2 => :servfail,
+    3 => :nxdomain,
+    4 => :notimp,
+    5 => :refused,
+    6 => :yxdomain,
+    7 => :yxrrset,
+    8 => :nxrrset,
+    9 => :notauth,
+    10 => :notzone,
+    11 => :dsotypeni,
+    16 => :badvers,
+    17 => :badkey,
+    18 => :badtime,
+    19 => :badmode,
+    20 => :badname,
+    21 => :badalg,
+    22 => :badtrunc,
+    23 => :badcookie
+  }
+
+  @rcode_code_map for {k, v} <- @rcode_map, into: %{}, do: {v, k}
+
+  @option_map %{
+    0 => :reserved0,
+    1 => :llq,
+    2 => :ul,
+    3 => :nsid,
+    4 => :reserved4,
+    5 => :dau,
+    6 => :dhu,
+    7 => :n3u,
+    8 => :edns_client_subnet,
+    9 => :edns_expire,
+    10 => :cookie,
+    11 => :edns_tcp_keepalive,
+    12 => :padding,
+    13 => :chain,
+    14 => :edns_key_tag,
+    15 => :extended_dns_error,
+    16 => :edns_client_tag,
+    17 => :edns_server_tag,
+    26_946 => :deviceid
+  }
+
+  @option_code_map for {k, v} <- @option_map, into: %{}, do: {v, k}
+
+  # Optimized pattern matching for most common DNS types with inlining
   def type(1), do: :a
-  def type(2), do: :ns  
+  def type(2), do: :ns
   def type(5), do: :cname
   def type(15), do: :mx
   def type(16), do: :txt
   def type(28), do: :aaaa
   def type(41), do: :opt
   def type(255), do: :any
-  def type(num), do: Map.get(@type_map, num)
+  def type(code), do: Map.get(@type_map, code)
 
   def type_code(:a), do: 1
   def type_code(:ns), do: 2
@@ -129,36 +141,30 @@ defmodule DNS do
   def type_code(:aaaa), do: 28
   def type_code(:opt), do: 41
   def type_code(:any), do: 255
-  def type_code(atom), do: Map.get(@type_reverse_map, atom)
+  def type_code(atom), do: Map.get(@type_code_map, atom)
 
-  @class_map Map.new(@class_pairs)
-  @class_reverse_map Map.new(@class_pairs, fn {k, v} -> {v, k} end)
-
-  # Optimized pattern matching for most common DNS classes
+  # Optimized pattern matching for most common DNS classes with inlining  
   def class(1), do: :in
   def class(255), do: :any
-  def class(num), do: Map.get(@class_map, num)
+  def class(code), do: Map.get(@class_map, code)
 
   def class_code(:in), do: 1
   def class_code(:any), do: 255
-  def class_code(atom), do: Map.get(@class_reverse_map, atom)
+  def class_code(atom), do: Map.get(@class_code_map, atom)
 
-  @rcode_map Map.new(@rcode_pairs)
-  @rcode_reverse_map Map.new(@rcode_pairs, fn {k, v} -> {v, k} end)
+  # rcode lookup functions
+  def rcode(code), do: Map.get(@rcode_map, code)
+  def rcode_code(atom), do: Map.get(@rcode_code_map, atom)
 
-  def rcode(num), do: Map.get(@rcode_map, num)
-  def rcode_code(atom), do: Map.get(@rcode_reverse_map, atom)
-
-  @option_map Map.new(@option_pairs)
-  @option_reverse_map Map.new(@option_pairs, fn {k, v} -> {v, k} end)
-
-  def option(num), do: Map.get(@option_map, num)
-  def option_code(atom), do: Map.get(@option_reverse_map, atom)
+  # option lookup functions
+  def option(code), do: Map.get(@option_map, code)
+  def option_code(atom), do: Map.get(@option_code_map, atom)
 
   @default_port 53
   @default_service "domain"
 
-  def rcode_text(), do: %{
+  # Pre-compile rcode text map for better performance
+  @rcode_text %{
     :noerror => "No Error",
     :formerr => "Format Error",
     :servfail => "Server Failure",
@@ -181,6 +187,8 @@ defmodule DNS do
     :badtrunc => "Bad Truncation",
     :badcookie => "Bad/missing Server Cookie"
   }
+  
+  def rcode_text(), do: @rcode_text
 
   def port(), do: @default_port
   def service(), do: @default_service
