@@ -106,7 +106,7 @@ defmodule TenbinDnsTest do
     test "parse handles malformed packets gracefully" do
       # Test with insufficient data
       short_packet = <<0x18, 0x25>>
-      
+
       assert_raise FunctionClauseError, fn ->
         DNSpacket.parse(short_packet)
       end
@@ -122,7 +122,7 @@ defmodule TenbinDnsTest do
         0x00, 0x00,  # NSCOUNT = 0
         0x00, 0x00   # ARCOUNT = 0
       >>
-      
+
       parsed = DNSpacket.parse(empty_question_packet)
       assert parsed.id == 0x1825
       assert parsed.question == []
@@ -134,7 +134,7 @@ defmodule TenbinDnsTest do
         id: 0x1234,
         question: [%{qname: "test.com.", qtype: :invalid_type, qclass: :in}]
       }
-      
+
       # Should not crash, even with invalid type
       assert_raise ArgumentError, fn ->
         DNSpacket.create(packet)
@@ -145,7 +145,7 @@ defmodule TenbinDnsTest do
       # Test with maximum length domain name
       long_label = String.duplicate("a", 63)
       long_domain = "#{long_label}.com"
-      
+
       result = DNSpacket.create_domain_name(long_domain)
       assert is_binary(result)
       assert byte_size(result) > 0
@@ -161,7 +161,7 @@ defmodule TenbinDnsTest do
         z: 0,
         rdata: []
       }
-      
+
       result = DNSpacket.create_rr(opt_record)
       assert is_binary(result)
       # Should have minimal OPT record structure
@@ -174,7 +174,7 @@ defmodule TenbinDnsTest do
       # Test with 255-byte string (maximum for DNS)
       max_string = String.duplicate("x", 255)
       result = DNSpacket.create_character_string(max_string)
-      
+
       assert byte_size(result) == 256  # 1 byte length + 255 bytes data
       assert binary_part(result, 0, 1) == <<255>>
     end
@@ -182,7 +182,7 @@ defmodule TenbinDnsTest do
     test "rdata parsing with insufficient data" do
       # Test A record with insufficient rdata
       insufficient_a_rdata = <<192, 168>>  # Only 2 bytes instead of 4
-      
+
       # This should return the default fallback instead of raising
       result = DNSpacket.parse_rdata(insufficient_a_rdata, :a, :in, <<>>)
       assert result == %{type: :a, class: :in, rdata: <<192, 168>>}
@@ -200,7 +200,7 @@ defmodule TenbinDnsTest do
       assert DNS.type(28) == :aaaa
       assert DNS.type(41) == :opt  # This line was not covered
       assert DNS.type(255) == :any
-      
+
       # Test fallback to Map.get for non-optimized types
       assert DNS.type(6) == :soa
       assert DNS.type(999) == nil  # Non-existent type
@@ -216,7 +216,7 @@ defmodule TenbinDnsTest do
       assert DNS.type_code(:aaaa) == 28
       assert DNS.type_code(:opt) == 41
       assert DNS.type_code(:any) == 255
-      
+
       # Test fallback to Map.get for non-optimized types
       assert DNS.type_code(:soa) == 6
       assert DNS.type_code(:invalid) == nil  # Non-existent type
@@ -226,7 +226,7 @@ defmodule TenbinDnsTest do
       # Test the optimized pattern matching clauses
       assert DNS.class(1) == :in
       assert DNS.class(255) == :any
-      
+
       # Test fallback to Map.get for non-optimized classes
       assert DNS.class(2) == :cs
       assert DNS.class(999) == nil  # Non-existent class
@@ -236,7 +236,7 @@ defmodule TenbinDnsTest do
       # Test the optimized pattern matching clauses
       assert DNS.class_code(:in) == 1
       assert DNS.class_code(:any) == 255
-      
+
       # Test fallback to Map.get for non-optimized classes
       assert DNS.class_code(:cs) == 2
       assert DNS.class_code(:invalid) == nil  # Non-existent class

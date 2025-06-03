@@ -95,10 +95,12 @@ defmodule DNSTest do
 
   describe "option functions" do
     test "option/1 returns correct atom for valid option codes" do
-      assert DNS.option(0) == :reserved0
+      assert DNS.option(0) == :reserved
       assert DNS.option(8) == :edns_client_subnet
       assert DNS.option(10) == :cookie
       assert DNS.option(15) == :extended_dns_error
+      assert DNS.option(18) == :report_channel
+      assert DNS.option(19) == :zoneversion
     end
 
     test "option/1 returns nil for invalid option codes" do
@@ -106,10 +108,14 @@ defmodule DNSTest do
     end
 
     test "option_code/1 returns correct code for valid atoms" do
-      assert DNS.option_code(:reserved0) == 0
+      assert DNS.option_code(:reserved) == 0
+      assert DNS.option_code(:update_lease) == 2
       assert DNS.option_code(:edns_client_subnet) == 8
       assert DNS.option_code(:cookie) == 10
       assert DNS.option_code(:extended_dns_error) == 15
+      assert DNS.option_code(:report_channel) == 18
+      assert DNS.option_code(:zoneversion) == 19
+      assert DNS.option_code(:umbrella_ident) == 20_292
     end
 
     test "option_code/1 returns nil for invalid atoms" do
@@ -134,7 +140,7 @@ defmodule DNSTest do
   describe "rcode_text/0" do
     test "returns map with human-readable rcode descriptions" do
       rcode_text = DNS.rcode_text()
-      
+
       assert is_map(rcode_text)
       assert rcode_text[:noerror] == "No Error"
       assert rcode_text[:formerr] == "Format Error"
