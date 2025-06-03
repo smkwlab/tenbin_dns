@@ -1,4 +1,16 @@
 defmodule DNSpacket do
+  @moduledoc """
+  DNS packet parsing and creation module.
+
+  This module provides functionality for creating and parsing DNS packets
+  according to RFC 1035 and related specifications. It supports standard
+  DNS records (A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA) and EDNS0
+  extensions including OPT records.
+
+  The module is optimized for high performance with compile-time optimizations,
+  aggressive function inlining, and efficient binary pattern matching.
+  """
+
   # Aggressive inlining for maximum speed (over memory efficiency)
   @compile {:inline, [
     create_character_string: 1,
@@ -21,7 +33,25 @@ defmodule DNSpacket do
   defstruct id: 0, qr: 0, opcode: 0, aa: 0, tc: 0, rd: 0, ra: 0, z: 0, ad: 0, cd: 0, rcode: 0,
                question: [], answer: [], authority: [], additional: []
 
-  @spec create(%DNSpacket{}) :: <<_::64, _::_*8>>
+  @type t :: %__MODULE__{
+    id: non_neg_integer(),
+    qr: 0 | 1,
+    opcode: non_neg_integer(),
+    aa: 0 | 1,
+    tc: 0 | 1,
+    rd: 0 | 1,
+    ra: 0 | 1,
+    z: 0 | 1,
+    ad: 0 | 1,
+    cd: 0 | 1,
+    rcode: non_neg_integer(),
+    question: list(map()),
+    answer: list(map()),
+    authority: list(map()),
+    additional: list(map())
+  }
+
+  @spec create(t()) :: <<_::64, _::_*8>>
   def create(packet) do
     header = <<packet.id                ::16,
                packet.qr                ::1,
@@ -39,16 +69,44 @@ defmodule DNSpacket do
                length(packet.authority) ::16,
                length(packet.additional)::16>>
     
-    [
+    :erlang.iolist_to_binary([
       header,
       create_question(packet.question),
       create_answer(packet.answer),
       create_answer(packet.authority),
       create_answer(packet.additional)
-    ] |> :erlang.iolist_to_binary()
+    ])
   end
 
   def concat_binary_list(list), do: :erlang.iolist_to_binary(list)
+
+  # Helper function to build OPT record structure
+  defp build_opt_record(name, size, ex_rcode, version, dnssec, z, rdlength, rdata) do
+    %{
+      name: name,
+      type: :opt,
+      payload_size: size,
+      ex_rcode: ex_rcode,
+      version: version,
+      dnssec: dnssec,
+      z: z,
+      rdlength: rdlength,
+      rdata: parse_opt_rr([], rdata)
+    }
+  end
+
+  # Parse OPT record binary and return {opt_record, remaining_body}
+  defp parse_opt_record_binary(<<size     :: unsigned-integer-size(16),
+                                ex_rcode :: unsigned-integer-size(8),
+                                version  :: unsigned-integer-size(8),
+                                dnssec   :: size(1),
+                                z        :: size(15),
+                                rdlength :: unsigned-integer-size(16),
+                                rdata    :: binary-size(rdlength),
+                                body     :: binary>>, name) do
+    opt_record = build_opt_record(name, size, ex_rcode, version, dnssec, z, rdlength, rdata)
+    {opt_record, body}
+  end
 
   def create_question(question) do
     question
@@ -152,6 +210,7 @@ defmodule DNSpacket do
   def create_character_string(txt), do: <<byte_size(txt)::8, txt::binary>>
 
   # Speed-optimized parse function with reduced function call overhead
+  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def parse(
     <<
     id      :: unsigned-integer-size(16),
@@ -173,10 +232,10 @@ defmodule DNSpacket do
     >> = orig_body) do
 
     # Inline parsing for maximum speed
-    {body, question}   = parse_question_fast(body, qdcount, orig_body, [])
-    {body, answer}     = parse_answer_fast(body, ancount, orig_body, [])
-    {body, authority}  = parse_answer_fast(body, nscount, orig_body, [])
-    {_, additional}    = parse_answer_fast(body, arcount, orig_body, [])
+    {rest1, question}   = parse_question_fast(body, qdcount, orig_body, [])
+    {rest2, answer}     = parse_answer_fast(rest1, ancount, orig_body, [])
+    {rest3, authority}  = parse_answer_fast(rest2, nscount, orig_body, [])
+    {_, additional}     = parse_answer_fast(rest3, arcount, orig_body, [])
 
     %DNSpacket{
       id: id,
@@ -201,52 +260,34 @@ defmodule DNSpacket do
   defp parse_question_fast(body, 0, _orig_body, result), do: {body, result}
   
   defp parse_question_fast(body, count, orig_body, result) do
-    {body, _, qname} = parse_name(body, orig_body, "")
+    {new_body, _, qname} = parse_name(body, orig_body, "")
     <<
     qtype  :: unsigned-integer-size(16),
     qclass :: unsigned-integer-size(16),
-    body   :: binary,
-    >> = body
+    rest   :: binary,
+    >> = new_body
     # Pre-cache DNS lookups
     qtype_atom = DNS.type(qtype)
     qclass_atom = DNS.class(qclass)
-    parse_question_fast(body, count - 1, orig_body,
+    parse_question_fast(rest, count - 1, orig_body,
       [%{qname: qname, qtype: qtype_atom, qclass: qclass_atom} | result])
   end
 
   defp parse_answer_fast(body, 0, _orig_body, result), do: {body, result}
 
   defp parse_answer_fast(body, count, orig_body, result) do
-    {body, _, name} = parse_name(body, orig_body, "")
+    {new_body, _, name} = parse_name(body, orig_body, "")
     <<
     type :: unsigned-integer-size(16),
-    body :: binary,
-    >> = body
-    parse_answer_checkopt_fast(body, type, name, count, orig_body, result)
+    rest :: binary,
+    >> = new_body
+    parse_answer_checkopt_fast(rest, type, name, count, orig_body, result)
   end
 
   # OPT Record : 41 - Fast version
-  defp parse_answer_checkopt_fast(<<size     :: unsigned-integer-size(16),
-                                   ex_rcode :: unsigned-integer-size(8),
-                                   version  :: unsigned-integer-size(8),
-                                   dnssec   :: size(1),
-                                   z        :: size(15),
-                                   rdlength :: unsigned-integer-size(16),
-                                   rdata    :: binary-size(rdlength),
-                                   body     :: binary>>,
-    41, name, count, orig_body, result) do
-    parse_answer_fast(body, count - 1, orig_body,
-      [%{
-          name: name,
-          type: :opt,
-          payload_size: size,
-          ex_rcode: ex_rcode,
-          version: version,
-          dnssec: dnssec,
-          z: z,
-          rdlength: rdlength,
-          rdata: parse_opt_rr([], rdata),
-       }  | result])
+  defp parse_answer_checkopt_fast(body, 41, name, count, orig_body, result) do
+    {opt_record, rest} = parse_opt_record_binary(body, name)
+    parse_answer_fast(rest, count - 1, orig_body, [opt_record | result])
   end
 
   defp parse_answer_checkopt_fast(<<class    :: unsigned-integer-size(16),
@@ -272,49 +313,31 @@ defmodule DNSpacket do
   def parse_question(body, 0, orig_body, result), do: {body, 0, orig_body, result}
 
   def parse_question(body, count, orig_body, result) do
-    {body, _, qname} = parse_name(body, orig_body, "")
+    {new_body, _, qname} = parse_name(body, orig_body, "")
     <<
     qtype  :: unsigned-integer-size(16),
     qclass :: unsigned-integer-size(16),
-    body   :: binary,
-    >> = body
-    parse_question(body, count - 1, orig_body,
+    rest   :: binary,
+    >> = new_body
+    parse_question(rest, count - 1, orig_body,
       [%{qname: qname, qtype: DNS.type(qtype), qclass: DNS.class(qclass)} | result])
   end
 
   def parse_answer(body, 0, orig_body, result), do: {body, 0, orig_body, result}
 
   def parse_answer(body, count, orig_body, result) do
-    {body, _, name} = parse_name(body, orig_body, "")
+    {new_body, _, name} = parse_name(body, orig_body, "")
     <<
     type :: unsigned-integer-size(16),
-    body :: binary,
-    >> = body
-    parse_answer_checkopt(body, type, name, count, orig_body, result)
+    rest :: binary,
+    >> = new_body
+    parse_answer_checkopt(rest, type, name, count, orig_body, result)
   end
 
   # OPT Record : 41
-  def parse_answer_checkopt(<<size     :: unsigned-integer-size(16),
-                              ex_rcode :: unsigned-integer-size(8),
-                              version  :: unsigned-integer-size(8),
-                              dnssec   :: size(1),
-                              z        :: size(15),
-                              rdlength :: unsigned-integer-size(16),
-                              rdata    :: binary-size(rdlength),
-                              body     :: binary>>,
-    41, name, count, orig_body, result) do
-    parse_answer(body, count - 1, orig_body,
-      [%{
-          name: name,
-          type: :opt,
-          payload_size: size,
-          ex_rcode: ex_rcode,
-          version: version,
-          dnssec: dnssec,
-          z: z,
-          rdlength: rdlength,
-          rdata: parse_opt_rr([], rdata),
-       }  | result])
+  def parse_answer_checkopt(body, 41, name, count, orig_body, result) do
+    {opt_record, rest} = parse_opt_record_binary(body, name)
+    parse_answer(rest, count - 1, orig_body, [opt_record | result])
   end
 
   def parse_answer_checkopt(<<class    :: unsigned-integer-size(16),
@@ -364,7 +387,7 @@ defmodule DNSpacket do
     parse_name_acc(body, orig_body, ["." | [name | acc]])
   end
 
-  def parse_rdata(<<a1::8,a2::8,a3::8,a4::8>>, :a, :in, _) do
+  def parse_rdata(<<a1::8, a2::8, a3::8, a4::8>>, :a, :in, _) do
     %{
       addr: {a1, a2, a3, a4}
     }
@@ -385,15 +408,15 @@ defmodule DNSpacket do
   end
 
   def parse_rdata(rdata, :soa, _, orig_body) do
-    {rdata, _, mname} = parse_name(rdata, orig_body, "")
-    {rdata, _, rname} = parse_name(rdata, orig_body, "")
+    {rest1, _, mname} = parse_name(rdata, orig_body, "")
+    {rest2, _, rname} = parse_name(rest1, orig_body, "")
     <<
     serial  :: unsigned-integer-size(32),
     refresh :: unsigned-integer-size(32),
     retry   :: unsigned-integer-size(32),
     expire  :: unsigned-integer-size(32),
     minimum :: unsigned-integer-size(32),
-    >> = rdata
+    >> = rest2
     %{
       mname: mname,
       rname: rname,
@@ -440,9 +463,9 @@ defmodule DNSpacket do
     }
   end
 
-  def parse_rdata(<<a1::16,a2::16,a3::16,a4::16,a5::16,a6::16,a7::16,a8::16>>, :aaaa, :in, _) do
+  def parse_rdata(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>, :aaaa, :in, _) do
     %{
-      addr: {a1,a2,a3,a4,a5,a6,a7,a8},
+      addr: {a1, a2, a3, a4, a5, a6, a7, a8},
     }
   end
 
@@ -475,11 +498,11 @@ defmodule DNSpacket do
     parse_opt_rr([parse_opt_code(DNS.option(code), data) | result], opt_rr)
   end
 
-  def parse_opt_code(:edns_client_subnet, <<family::16,source::8,scope::8,address::binary>>) do
+  def parse_opt_code(:edns_client_subnet, <<family::16, source::8, scope::8, address::binary>>) do
     %{code: :edns_client_subnet, family: family, source: source, scope: scope, addr: address}
   end
 
-  def parse_opt_code(:extended_dns_error, <<option_code::16,_length::16,info_code::16,txt::binary>>) do
+  def parse_opt_code(:extended_dns_error, <<option_code::16, _length::16, info_code::16, txt::binary>>) do
     %{code: :extended_dns_error, option_code: option_code, info_code: info_code, txt: txt}
   end
 
