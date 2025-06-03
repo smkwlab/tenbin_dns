@@ -98,17 +98,19 @@ defmodule DNSpacketTest do
       rdata = %{
         mname: "ns1.example.com",
         rname: "admin.example.com",
+        # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
         serial: 2023010101,
         refresh: 7200,
         retry: 3600,
-        expire: 604800,
-        minimum: 86400
+        expire: 604_800,
+        minimum: 86_400
       }
       result = DNSpacket.create_rdata(rdata, :soa, :in)
       
       expected = <<3, "ns1", 7, "example", 3, "com">> <>
                 <<5, "admin", 7, "example", 3, "com">> <>
-                <<2023010101::32, 7200::32, 3600::32, 604800::32, 86400::32>>
+                # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
+                <<2023010101::32, 7200::32, 3600::32, 604_800::32, 86_400::32>>
       assert result == expected
     end
   end
@@ -415,12 +417,14 @@ defmodule DNSpacketTest do
     test "parse_rdata for SOA record" do
       soa_binary = <<3, "ns1", 7, "example", 3, "com", 0>> <>
                    <<5, "admin", 7, "example", 3, "com", 0>> <>
-                   <<2023010101::32, 7200::32, 3600::32, 604800::32, 86400::32>>
+                   # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
+                   <<2023010101::32, 7200::32, 3600::32, 604_800::32, 86_400::32>>
       orig_body = <<0::96>> <> soa_binary
       
       result = DNSpacket.parse_rdata(soa_binary, :soa, :in, orig_body)
       assert result.mname == "ns1.example.com."
       assert result.rname == "admin.example.com."
+      # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
       assert result.serial == 2023010101
     end
 
@@ -556,8 +560,8 @@ defmodule DNSpacketTest do
       
       # Test with pre-existing result
       existing = [%{code: :test, data: <<1, 2>>}]
-      result = DNSpacket.parse_opt_rr(existing, <<>>)
-      assert result == existing
+      result2 = DNSpacket.parse_opt_rr(existing, <<>>)
+      assert result2 == existing
     end
 
     test "parse_opt_code with extended DNS error different format" do
@@ -601,11 +605,11 @@ defmodule DNSpacketTest do
             rdata: %{addr: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 2}}}
         ],
         authority: [
-          %{name: "example.com.", type: :ns, class: :in, ttl: 86400,
+          %{name: "example.com.", type: :ns, class: :in, ttl: 86_400,
             rdata: %{name: "ns1.example.com."}}
         ],
         additional: [
-          %{name: "ns1.example.com.", type: :a, class: :in, ttl: 86400,
+          %{name: "ns1.example.com.", type: :a, class: :in, ttl: 86_400,
             rdata: %{addr: {10, 0, 0, 10}}}
         ]
       }
@@ -629,9 +633,9 @@ defmodule DNSpacketTest do
       assert result == <<9, "localhost">>
       
       # Test domain with empty label (edge case)
-      result = DNSpacket.create_domain_name("test..com")
+      result2 = DNSpacket.create_domain_name("test..com")
       expected = <<4, "test", 0, 3, "com">>
-      assert result == expected
+      assert result2 == expected
     end
 
     test "create_character_string with maximum length" do
