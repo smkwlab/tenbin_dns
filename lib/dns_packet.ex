@@ -53,29 +53,45 @@ defmodule DNSpacket do
 
   @spec create(t()) :: <<_::64, _::_*8>>
   def create(packet) do
-    header = <<packet.id                ::16,
-               packet.qr                ::1,
-               packet.opcode            ::4,
-               packet.aa                ::1,
-               packet.tc                ::1,
-               packet.rd                ::1,
-               packet.ra                ::1,
-               packet.z                 ::1,
-               packet.ad                ::1,
-               packet.cd                ::1,
-               packet.rcode             ::4,
-               length(packet.question)  ::16,
-               length(packet.answer)    ::16,
-               length(packet.authority) ::16,
-               length(packet.additional)::16>>
+    # If edns_info exists, create OPT record from it and add to additional section
+    additional_with_edns = merge_edns_info_to_additional(packet.additional, packet.edns_info)
+    
+    header = <<packet.id                     ::16,
+               packet.qr                     ::1,
+               packet.opcode                 ::4,
+               packet.aa                     ::1,
+               packet.tc                     ::1,
+               packet.rd                     ::1,
+               packet.ra                     ::1,
+               packet.z                      ::1,
+               packet.ad                     ::1,
+               packet.cd                     ::1,
+               packet.rcode                  ::4,
+               length(packet.question)       ::16,
+               length(packet.answer)         ::16,
+               length(packet.authority)      ::16,
+               length(additional_with_edns)  ::16>>
     
     :erlang.iolist_to_binary([
       header,
       create_question(packet.question),
       create_answer(packet.answer),
       create_answer(packet.authority),
-      create_answer(packet.additional)
+      create_answer(additional_with_edns)
     ])
+  end
+
+  defp merge_edns_info_to_additional(additional, nil), do: additional
+  
+  defp merge_edns_info_to_additional(additional, edns_info) do
+    # Remove any existing OPT records from additional section
+    non_opt_records = Enum.reject(additional, &(&1.type == :opt))
+
+    # Create new OPT record from edns_info
+    opt_record = create_edns_info_record(edns_info)
+
+    # Add the new OPT record to the additional section
+    [opt_record | non_opt_records]
   end
 
   def concat_binary_list(list), do: :erlang.iolist_to_binary(list)
@@ -104,11 +120,17 @@ defmodule DNSpacket do
 
   # EDNS0
   def create_rr(%{type: :opt} = rr) do
+    rdata_binary = case rr.rdata do
+      [] -> <<>>
+      options when is_list(options) ->
+        options
+        |> Enum.map(&create_option_binary/1)
+        |> concat_binary_list
+      _ -> <<>>
+    end
+
     <<0, DNS.type_code(:opt)::16, rr.payload_size::16, rr.ex_rcode::8, rr.version::8, rr.dnssec::1, rr.z::15>> <>
-      (rr.rdata
-      |> Enum.map(&(create_options(&1)))
-      |> concat_binary_list
-      |> add_rdlength)
+      add_rdlength(rdata_binary)
   end
 
   def create_rr(rr) do
@@ -116,6 +138,207 @@ defmodule DNSpacket do
     <<DNS.type_code(rr.type)::16, DNS.class_code(rr.class)::16, rr.ttl::32>> <>
     (rr.rdata |> create_rdata(rr.type, rr.class) |> add_rdlength)
   end
+
+  defp create_option_binary(%{code: :edns_client_subnet, family: family, source: source, scope: scope, addr: addr}) do
+    data = <<family::16, source::8, scope::8>> <> addr
+    <<DNS.option_code(:edns_client_subnet)::16, byte_size(data)::16>> <> data
+  end
+
+  defp create_option_binary(%{code: :cookie, cookie: cookie}) do
+    <<DNS.option_code(:cookie)::16, byte_size(cookie)::16>> <> cookie
+  end
+
+  defp create_option_binary(%{code: :nsid, data: data}) do
+    <<DNS.option_code(:nsid)::16, byte_size(data)::16>> <> data
+  end
+
+  defp create_option_binary(%{code: :extended_dns_error, info_code: info_code, txt: txt}) do
+    data = <<info_code::16>> <> txt
+    <<DNS.option_code(:extended_dns_error)::16, byte_size(data)::16>> <> data
+  end
+
+  defp create_option_binary(%{code: :edns_tcp_keepalive, data: data}) do
+    <<DNS.option_code(:edns_tcp_keepalive)::16, byte_size(data)::16>> <> data
+  end
+
+  defp create_option_binary(%{code: :padding, data: data}) do
+    <<DNS.option_code(:padding)::16, byte_size(data)::16>> <> data
+  end
+
+  defp create_option_binary(%{code: code, data: data}) do
+    option_code = DNS.option_code(code) || 0
+    <<option_code::16, byte_size(data)::16>> <> data
+  end
+
+  @doc """
+  Creates EDNS options binary from structured edns_info data.
+  
+  Takes structured EDNS options and converts them back to binary format
+  for inclusion in DNS packets.
+  """
+  def create_edns_options(%{} = options) do
+    options
+    |> Enum.flat_map(&create_edns_option/1)
+    |> concat_binary_list
+  end
+
+  def create_edns_options(_), do: <<>>
+
+  defp create_edns_option({:ecs, ecs_data}) do
+    [create_ecs_option(ecs_data)]
+  end
+
+  defp create_edns_option({:cookie, cookie_data}) do
+    [create_cookie_option(cookie_data)]
+  end
+
+  defp create_edns_option({:nsid, nsid_data}) do
+    [create_nsid_option(nsid_data)]
+  end
+
+  defp create_edns_option({:extended_dns_error, ede_data}) do
+    [create_extended_dns_error_option(ede_data)]
+  end
+
+  defp create_edns_option({:tcp_keepalive, keepalive_data}) do
+    [create_tcp_keepalive_option(keepalive_data)]
+  end
+
+  defp create_edns_option({:padding, padding_data}) do
+    [create_padding_option(padding_data)]
+  end
+
+  defp create_edns_option({:unknown, unknown_options}) when is_list(unknown_options) do
+    Enum.map(unknown_options, &create_unknown_option/1)
+  end
+
+  defp create_edns_option(_), do: []
+
+  defp create_ecs_option(%{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}) do
+    addr_bytes = create_ecs_address_bytes(family, subnet, source)
+    data = <<family::16, source::8, scope::8>> <> addr_bytes
+    <<DNS.option_code(:edns_client_subnet)::16, byte_size(data)::16>> <> data
+  end
+
+  defp create_ecs_address_bytes(1, {a, b, c, d}, source_prefix) do
+    # IPv4 address - calculate how many bytes needed for the prefix
+    bytes_needed = div(source_prefix + 7, 8)
+    full_addr = <<a::8, b::8, c::8, d::8>>
+    binary_part(full_addr, 0, min(bytes_needed, 4))
+  end
+
+  defp create_ecs_address_bytes(2, {a1, a2, a3, a4, a5, a6, a7, a8}, source_prefix) do
+    # IPv6 address - calculate how many bytes needed for the prefix
+    bytes_needed = div(source_prefix + 7, 8)
+    full_addr = <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>
+    binary_part(full_addr, 0, min(bytes_needed, 16))
+  end
+
+  defp create_ecs_address_bytes(_, addr_bytes, _) when is_binary(addr_bytes) do
+    # Unknown family, return as-is
+    addr_bytes
+  end
+
+  defp create_cookie_option(%{client: client, server: nil}) do
+    <<DNS.option_code(:cookie)::16, byte_size(client)::16>> <> client
+  end
+
+  defp create_cookie_option(%{client: client, server: server}) when is_binary(server) do
+    cookie_data = client <> server
+    <<DNS.option_code(:cookie)::16, byte_size(cookie_data)::16>> <> cookie_data
+  end
+
+  defp create_nsid_option(nsid_data) when is_binary(nsid_data) do
+    <<DNS.option_code(:nsid)::16, byte_size(nsid_data)::16>> <> nsid_data
+  end
+
+  defp create_extended_dns_error_option(%{info_code: info_code, extra_text: extra_text}) do
+    data = <<info_code::16>> <> extra_text
+    <<DNS.option_code(:extended_dns_error)::16, byte_size(data)::16>> <> data
+  end
+
+  defp create_tcp_keepalive_option(%{timeout: nil}) do
+    <<DNS.option_code(:edns_tcp_keepalive)::16, 0::16>>
+  end
+
+  defp create_tcp_keepalive_option(%{timeout: timeout}) when is_integer(timeout) do
+    data = <<timeout::16>>
+    <<DNS.option_code(:edns_tcp_keepalive)::16, byte_size(data)::16>> <> data
+  end
+
+  defp create_padding_option(%{length: length}) when is_integer(length) do
+    padding_data = <<0::size(length * 8)>>
+    <<DNS.option_code(:padding)::16, byte_size(padding_data)::16>> <> padding_data
+  end
+
+  defp create_unknown_option(%{code: code, data: data}) do
+    option_code = DNS.option_code(code) || 0
+    <<option_code::16, byte_size(data)::16>> <> data
+  end
+
+  @doc """
+  Creates an OPT record from structured edns_info data.
+  
+  Converts structured EDNS information back to the raw OPT record format
+  for inclusion in the additional section.
+  """
+  def create_edns_info_record(%{} = edns_info) do
+    payload_size = Map.get(edns_info, :payload_size, 1232)
+    ex_rcode = Map.get(edns_info, :ex_rcode, 0)
+    version = Map.get(edns_info, :version, 0)
+    dnssec = Map.get(edns_info, :dnssec, 0)
+    z = Map.get(edns_info, :z, 0)
+    options = Map.get(edns_info, :options, %{})
+
+    %{
+      name: "",
+      type: :opt,
+      payload_size: payload_size,
+      ex_rcode: ex_rcode,
+      version: version,
+      dnssec: dnssec,
+      z: z,
+      rdata: convert_options_to_rdata(options)
+    }
+  end
+
+  defp convert_options_to_rdata(%{} = options) do
+    Enum.flat_map(options, &convert_option_to_rdata/1)
+  end
+
+  defp convert_option_to_rdata({:ecs, %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}) do
+    addr_bytes = create_ecs_address_bytes(family, subnet, source)
+    [%{code: :edns_client_subnet, family: family, source: source, scope: scope, addr: addr_bytes}]
+  end
+
+  defp convert_option_to_rdata({:cookie, %{client: client, server: server}}) do
+    cookie_data = if server, do: client <> server, else: client
+    [%{code: :cookie, cookie: cookie_data}]
+  end
+
+  defp convert_option_to_rdata({:nsid, nsid_data}) do
+    [%{code: :nsid, data: nsid_data}]
+  end
+
+  defp convert_option_to_rdata({:extended_dns_error, %{info_code: info_code, extra_text: extra_text}}) do
+    [%{code: :extended_dns_error, info_code: info_code, txt: extra_text}]
+  end
+
+  defp convert_option_to_rdata({:tcp_keepalive, %{timeout: timeout}}) do
+    data = if timeout, do: <<timeout::16>>, else: <<>>
+    [%{code: :edns_tcp_keepalive, data: data}]
+  end
+
+  defp convert_option_to_rdata({:padding, %{length: length}}) do
+    data = <<0::size(length * 8)>>
+    [%{code: :padding, data: data}]
+  end
+
+  defp convert_option_to_rdata({:unknown, unknown_options}) when is_list(unknown_options) do
+    unknown_options
+  end
+
+  defp convert_option_to_rdata(_), do: []
 
   # FIXME
   def create_options(_) do

@@ -1061,4 +1061,269 @@ defmodule DNSpacketTest do
       assert parsed.edns_info == nil
     end
   end
+
+  describe "create_edns_info_record/1" do
+    test "creates OPT record from structured edns_info" do
+      edns_info = %{
+        payload_size: 4096,
+        ex_rcode: 0,
+        version: 0,
+        dnssec: 1,
+        z: 0,
+        options: %{
+          ecs: %{
+            family: 1,
+            client_subnet: {192, 168, 1, 0},
+            source_prefix: 24,
+            scope_prefix: 0
+          }
+        }
+      }
+      
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      
+      assert opt_record.type == :opt
+      assert opt_record.payload_size == 4096
+      assert opt_record.dnssec == 1
+      assert length(opt_record.rdata) == 1
+      
+      ecs_option = hd(opt_record.rdata)
+      assert ecs_option.code == :edns_client_subnet
+      assert ecs_option.family == 1
+      assert ecs_option.source == 24
+      assert ecs_option.scope == 0
+      assert ecs_option.addr == <<192, 168, 1>>
+    end
+
+    test "creates OPT record with multiple options" do
+      edns_info = %{
+        payload_size: 1232,
+        options: %{
+          ecs: %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 8, scope_prefix: 0},
+          cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil},
+          nsid: "server1"
+        }
+      }
+      
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      
+      assert length(opt_record.rdata) == 3
+      
+      # Verify each option is present
+      codes = Enum.map(opt_record.rdata, & &1.code)
+      assert :edns_client_subnet in codes
+      assert :cookie in codes
+      assert :nsid in codes
+    end
+
+    test "creates empty OPT record when no options provided" do
+      edns_info = %{payload_size: 512}
+      
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      
+      assert opt_record.type == :opt
+      assert opt_record.payload_size == 512
+      assert opt_record.rdata == []
+    end
+  end
+
+  describe "EDNS creation and parsing roundtrip" do
+    test "roundtrip for packet with ECS option" do
+      original_packet = %DNSpacket{
+        id: 0x1234,
+        qr: 1,
+        rd: 1,
+        question: [%{qname: "example.com.", qtype: :a, qclass: :in}],
+        answer: [%{name: "example.com.", type: :a, class: :in, ttl: 300, 
+                   rdata: %{addr: {192, 168, 1, 1}}}],
+        edns_info: %{
+          payload_size: 4096,
+          dnssec: 1,
+          options: %{
+            ecs: %{
+              family: 1,
+              client_subnet: {203, 0, 113, 0},
+              source_prefix: 24,
+              scope_prefix: 0
+            }
+          }
+        }
+      }
+      
+      # Create binary from packet
+      binary = DNSpacket.create(original_packet)
+      
+      # Parse binary back to packet
+      parsed_packet = DNSpacket.parse(binary)
+      
+      # Verify basic structure
+      assert parsed_packet.id == original_packet.id
+      assert parsed_packet.qr == original_packet.qr
+      assert length(parsed_packet.answer) == 1
+      
+      # Verify EDNS info is preserved
+      assert parsed_packet.edns_info != nil
+      assert parsed_packet.edns_info.payload_size == 4096
+      assert parsed_packet.edns_info.dnssec == 1
+      assert parsed_packet.edns_info.options.ecs.family == 1
+      assert parsed_packet.edns_info.options.ecs.client_subnet == {203, 0, 113, 0}
+      assert parsed_packet.edns_info.options.ecs.source_prefix == 24
+    end
+
+    test "roundtrip for packet with multiple EDNS options" do
+      original_packet = %DNSpacket{
+        id: 0x5678,
+        qr: 0,
+        rd: 1,
+        question: [%{qname: "test.example.com.", qtype: :aaaa, qclass: :in}],
+        edns_info: %{
+          payload_size: 1232,
+          ex_rcode: 0,
+          version: 0,
+          dnssec: 0,
+          options: %{
+            ecs: %{
+              family: 2,
+              client_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0},
+              source_prefix: 48,
+              scope_prefix: 0
+            },
+            cookie: %{
+              client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+              server: <<9, 10, 11, 12, 13, 14, 15, 16>>
+            },
+            nsid: "ns1.example.com"
+          }
+        }
+      }
+      
+      binary = DNSpacket.create(original_packet)
+      parsed_packet = DNSpacket.parse(binary)
+      
+      # Verify EDNS options are preserved
+      edns = parsed_packet.edns_info
+      assert edns.options.ecs.family == 2
+      assert edns.options.ecs.client_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
+      assert edns.options.ecs.source_prefix == 48
+      
+      assert edns.options.cookie.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+      assert edns.options.cookie.server == <<9, 10, 11, 12, 13, 14, 15, 16>>
+      
+      assert edns.options.nsid == "ns1.example.com"
+    end
+
+    test "packet without edns_info creates no OPT record" do
+      packet = %DNSpacket{
+        id: 0x9999,
+        qr: 0,
+        rd: 1,
+        question: [%{qname: "simple.example.com.", qtype: :a, qclass: :in}],
+        edns_info: nil
+      }
+      
+      binary = DNSpacket.create(packet)
+      parsed_packet = DNSpacket.parse(binary)
+      
+      assert parsed_packet.edns_info == nil
+      assert Enum.all?(parsed_packet.additional, &(&1.type != :opt))
+    end
+
+    test "packet with edns_info replaces existing OPT records" do
+      packet = %DNSpacket{
+        id: 0xABCD,
+        qr: 0,
+        rd: 1,
+        question: [%{qname: "replace.example.com.", qtype: :a, qclass: :in}],
+        additional: [
+          %{name: "ns1.example.com.", type: :a, class: :in, ttl: 300, 
+            rdata: %{addr: {1, 2, 3, 4}}},
+          %{type: :opt, payload_size: 512, ex_rcode: 0, version: 0, dnssec: 0, z: 0, rdata: []}
+        ],
+        edns_info: %{
+          payload_size: 4096,
+          dnssec: 1,
+          options: %{
+            nsid: "new-server"
+          }
+        }
+      }
+      
+      binary = DNSpacket.create(packet)
+      parsed_packet = DNSpacket.parse(binary)
+      
+      # Should have exactly one OPT record with new settings
+      opt_records = Enum.filter(parsed_packet.additional, &(&1.type == :opt))
+      assert length(opt_records) == 1
+      
+      assert parsed_packet.edns_info.payload_size == 4096
+      assert parsed_packet.edns_info.dnssec == 1
+      assert parsed_packet.edns_info.options.nsid == "new-server"
+      
+      # Non-OPT records should be preserved
+      non_opt_records = Enum.reject(parsed_packet.additional, &(&1.type == :opt))
+      assert length(non_opt_records) == 1
+      assert hd(non_opt_records).type == :a
+    end
+  end
+
+  describe "ECS address byte calculation" do
+    test "IPv4 address with various prefix lengths" do
+      # Test /8 prefix (1 byte)
+      edns_info = %{
+        options: %{
+          ecs: %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 8, scope_prefix: 0}
+        }
+      }
+      
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      ecs_option = hd(opt_record.rdata)
+      assert ecs_option.addr == <<10>>
+      
+      # Test /16 prefix (2 bytes)
+      edns_info2 = %{
+        options: %{
+          ecs: %{family: 1, client_subnet: {192, 168, 0, 0}, source_prefix: 16, scope_prefix: 0}
+        }
+      }
+      
+      opt_record2 = DNSpacket.create_edns_info_record(edns_info2)
+      ecs_option2 = hd(opt_record2.rdata)
+      assert ecs_option2.addr == <<192, 168>>
+      
+      # Test /24 prefix (3 bytes)
+      edns_info3 = %{
+        options: %{
+          ecs: %{family: 1, client_subnet: {203, 0, 113, 0}, source_prefix: 24, scope_prefix: 0}
+        }
+      }
+      
+      opt_record3 = DNSpacket.create_edns_info_record(edns_info3)
+      ecs_option3 = hd(opt_record3.rdata)
+      assert ecs_option3.addr == <<203, 0, 113>>
+    end
+
+    test "IPv6 address with various prefix lengths" do
+      # Test /32 prefix (4 bytes)
+      edns_info = %{
+        options: %{
+          ecs: %{family: 2, client_subnet: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 0}, source_prefix: 32, scope_prefix: 0}
+        }
+      }
+      
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      ecs_option = hd(opt_record.rdata)
+      assert ecs_option.addr == <<0x20, 0x01, 0x0d, 0xb8>>
+      
+      # Test /48 prefix (6 bytes)
+      edns_info2 = %{
+        options: %{
+          ecs: %{family: 2, client_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}, source_prefix: 48, scope_prefix: 0}
+        }
+      }
+      
+      opt_record2 = DNSpacket.create_edns_info_record(edns_info2)
+      ecs_option2 = hd(opt_record2.rdata)
+      assert ecs_option2.addr == <<0x20, 0x01, 0x0d, 0xb8, 0x12, 0x34>>
+    end
+  end
 end
