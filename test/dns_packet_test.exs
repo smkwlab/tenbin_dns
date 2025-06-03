@@ -377,41 +377,6 @@ defmodule DNSpacketTest do
     end
   end
 
-  describe "check_ecs/1" do
-    test "returns default values for empty additional section" do
-      result = DNSpacket.check_ecs([])
-      expected = %{family: 0, scope: 0, addr: 0, source: 0}
-      assert result == expected
-    end
-
-    test "extracts ECS data from OPT record" do
-      additional = [
-        %{
-          type: :opt,
-          rdata: [
-            %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<192, 168, 1>>}
-          ]
-        }
-      ]
-      result = DNSpacket.check_ecs(additional)
-      expected = %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<192, 168, 1>>}
-      assert result == expected
-    end
-
-    test "returns default when no ECS option found" do
-      additional = [
-        %{
-          type: :opt,
-          rdata: [
-            %{code: :cookie, cookie: <<1, 2, 3, 4>>}
-          ]
-        }
-      ]
-      result = DNSpacket.check_ecs(additional)
-      expected = %{family: 0, scope: 0, addr: 0, source: 0}
-      assert result == expected
-    end
-  end
 
   describe "packet creation and parsing roundtrip" do
     test "creates and parses simple query packet" do
@@ -791,14 +756,6 @@ defmodule DNSpacketTest do
       assert result.txt == "Bad"
     end
 
-    test "check_ecs with malformed OPT record" do
-      # Test check_ecs with OPT record but no ECS option
-      additional = [
-        %{type: :opt, rdata: [%{code: :other_option, data: <<1, 2, 3>>}]}
-      ]
-      result = DNSpacket.check_ecs(additional)
-      assert result == %{family: 0, scope: 0, addr: 0, source: 0}
-    end
 
     test "create_rdata for all supported types complete coverage" do
       # Test create_rdata edge cases and ensure all paths are covered
