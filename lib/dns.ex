@@ -99,9 +99,9 @@ defmodule DNS do
   @rcode_code_map for {k, v} <- @rcode_map, into: %{}, do: {v, k}
 
   @option_map %{
-    0 => :reserved0,
+    0 => :reserved,
     1 => :llq,
-    2 => :ul,
+    2 => :update_lease,
     3 => :nsid,
     4 => :reserved4,
     5 => :dau,
@@ -117,6 +117,9 @@ defmodule DNS do
     15 => :extended_dns_error,
     16 => :edns_client_tag,
     17 => :edns_server_tag,
+    18 => :report_channel,
+    19 => :zoneversion,
+    20_292 => :umbrella_ident,
     26_946 => :deviceid
   }
 
@@ -143,7 +146,7 @@ defmodule DNS do
   def type_code(:any), do: 255
   def type_code(atom), do: Map.get(@type_code_map, atom)
 
-  # Optimized pattern matching for most common DNS classes with inlining  
+  # Optimized pattern matching for most common DNS classes with inlining
   def class(1), do: :in
   def class(255), do: :any
   def class(code), do: Map.get(@class_map, code)
@@ -187,11 +190,11 @@ defmodule DNS do
     :badtrunc => "Bad Truncation",
     :badcookie => "Bad/missing Server Cookie"
   }
-  
-  def rcode_text(), do: @rcode_text
 
-  def port(), do: @default_port
-  def service(), do: @default_service
+  def rcode_text, do: @rcode_text
 
-  def edns_max_udpsize(), do: 1232
+  def port, do: @default_port
+  def service, do: @default_service
+
+  def edns_max_udpsize, do: 1232
 end
