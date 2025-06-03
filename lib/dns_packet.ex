@@ -1,10 +1,22 @@
 defmodule DNSpacket do
-  # Inline frequently called small functions for better performance
+  # Aggressive inlining for maximum speed (over memory efficiency)
   @compile {:inline, [
     create_character_string: 1,
     add_rdlength: 1,
-    concat_binary_list: 1
+    concat_binary_list: 1,
+    parse_name: 3,
+    parse_name_acc: 3,
+    parse_question: 4,
+    parse_answer: 4,
+    parse_answer_checkopt: 6,
+    parse_rdata: 4,
+    parse_question_fast: 4,
+    parse_answer_fast: 4,
+    parse_answer_checkopt_fast: 6
   ]}
+  
+  # Compile-time optimization for maximum speed
+  @compile [:native, {:hipe, [:verbose, :o3]}]
 
   defstruct id: 0, qr: 0, opcode: 0, aa: 0, tc: 0, rd: 0, ra: 0, z: 0, ad: 0, cd: 0, rcode: 0,
                question: [], answer: [], authority: [], additional: []
@@ -139,6 +151,7 @@ defmodule DNSpacket do
 
   def create_character_string(txt), do: <<byte_size(txt)::8, txt::binary>>
 
+  # Speed-optimized parse function with reduced function call overhead
   def parse(
     <<
     id      :: unsigned-integer-size(16),
@@ -159,10 +172,11 @@ defmodule DNSpacket do
     body    :: binary,
     >> = orig_body) do
 
-    {body, _, _, question}   = parse_question(body, qdcount, orig_body, [])
-    {body, _, _, answer}     = parse_answer(body, ancount, orig_body, [])
-    {body, _, _, authority}  = parse_answer(body, nscount, orig_body, [])
-    {_,    _, _, additional} = parse_answer(body, arcount, orig_body, [])
+    # Inline parsing for maximum speed
+    {body, question}   = parse_question_fast(body, qdcount, orig_body, [])
+    {body, answer}     = parse_answer_fast(body, ancount, orig_body, [])
+    {body, authority}  = parse_answer_fast(body, nscount, orig_body, [])
+    {_, additional}    = parse_answer_fast(body, arcount, orig_body, [])
 
     %DNSpacket{
       id: id,
@@ -181,6 +195,78 @@ defmodule DNSpacket do
       authority: authority,
       additional: additional,
     }
+  end
+
+  # Fast parsing functions with reduced overhead
+  defp parse_question_fast(body, 0, _orig_body, result), do: {body, result}
+  
+  defp parse_question_fast(body, count, orig_body, result) do
+    {body, _, qname} = parse_name(body, orig_body, "")
+    <<
+    qtype  :: unsigned-integer-size(16),
+    qclass :: unsigned-integer-size(16),
+    body   :: binary,
+    >> = body
+    # Pre-cache DNS lookups
+    qtype_atom = DNS.type(qtype)
+    qclass_atom = DNS.class(qclass)
+    parse_question_fast(body, count - 1, orig_body,
+      [%{qname: qname, qtype: qtype_atom, qclass: qclass_atom} | result])
+  end
+
+  defp parse_answer_fast(body, 0, _orig_body, result), do: {body, result}
+
+  defp parse_answer_fast(body, count, orig_body, result) do
+    {body, _, name} = parse_name(body, orig_body, "")
+    <<
+    type :: unsigned-integer-size(16),
+    body :: binary,
+    >> = body
+    parse_answer_checkopt_fast(body, type, name, count, orig_body, result)
+  end
+
+  # OPT Record : 41 - Fast version
+  defp parse_answer_checkopt_fast(<<size     :: unsigned-integer-size(16),
+                                   ex_rcode :: unsigned-integer-size(8),
+                                   version  :: unsigned-integer-size(8),
+                                   dnssec   :: size(1),
+                                   z        :: size(15),
+                                   rdlength :: unsigned-integer-size(16),
+                                   rdata    :: binary-size(rdlength),
+                                   body     :: binary>>,
+    41, name, count, orig_body, result) do
+    parse_answer_fast(body, count - 1, orig_body,
+      [%{
+          name: name,
+          type: :opt,
+          payload_size: size,
+          ex_rcode: ex_rcode,
+          version: version,
+          dnssec: dnssec,
+          z: z,
+          rdlength: rdlength,
+          rdata: parse_opt_rr([], rdata),
+       }  | result])
+  end
+
+  defp parse_answer_checkopt_fast(<<class    :: unsigned-integer-size(16),
+                                   ttl      :: unsigned-integer-size(32),
+                                   rdlength :: unsigned-integer-size(16),
+                                   rdata    :: binary-size(rdlength),
+                                   body     :: binary>>,
+    type, name, count, orig_body, result) do
+    # Single DNS lookups for speed
+    type_atom = DNS.type(type)
+    class_atom = DNS.class(class)
+    parse_answer_fast(body, count - 1, orig_body,
+      [%{
+          name: name,
+          type: type_atom,
+          class: class_atom,
+          ttl: ttl,
+          rdlength: rdlength,
+          rdata: parse_rdata(rdata, type_atom || type, class_atom || class, orig_body)
+       }  | result])
   end
 
   def parse_question(body, 0, orig_body, result), do: {body, 0, orig_body, result}
@@ -237,37 +323,45 @@ defmodule DNSpacket do
                               rdata    :: binary-size(rdlength),
                               body     :: binary>>,
     type, name, count, orig_body, result) do
+    # Cache DNS lookups to avoid double lookups
+    type_atom = DNS.type(type)
+    class_atom = DNS.class(class)
     parse_answer(body, count - 1, orig_body,
       [%{
           name: name,
-          type: DNS.type(type),
-          class: DNS.class(class),
+          type: type_atom,
+          class: class_atom,
           ttl: ttl,
           rdlength: rdlength,
-          rdata: parse_rdata(rdata, DNS.type(type) || type, DNS.class(class) || class, orig_body)
+          rdata: parse_rdata(rdata, type_atom || type, class_atom || class, orig_body)
        }  | result])
   end
 
-  defp parse_name(<<0x0::size(8),body::binary>>, orig_body, "") do
+  # Optimized parse_name using iolist accumulator for better performance
+  defp parse_name(body, orig_body, "") do
+    parse_name_acc(body, orig_body, [])
+  end
+
+  defp parse_name(body, orig_body, result) do
+    parse_name_acc(body, orig_body, [result])
+  end
+
+  defp parse_name_acc(<<0::8, body::binary>>, orig_body, []) do
     {body, orig_body, "."}
   end
 
-  defp parse_name(<<0x0::size(8),body::binary>>, orig_body, result) do
-    {body, orig_body, result}
+  defp parse_name_acc(<<0::8, body::binary>>, orig_body, acc) do
+    {body, orig_body, :erlang.iolist_to_binary(Enum.reverse(acc))}
   end
 
-  defp parse_name(<<0b11   :: unsigned-integer-size(2),
-                    offset :: unsigned-integer-size(14),
-                    body   :: binary>>, orig_body, result) do
+  defp parse_name_acc(<<0b11::2, offset::14, body::binary>>, orig_body, acc) do
     <<_::binary-size(offset), tmp_body::binary>> = orig_body
-    {_, _, name} = parse_name(tmp_body, orig_body, result)
-    {body, orig_body, name}
+    {_, _, name} = parse_name_acc(tmp_body, orig_body, [])
+    {body, orig_body, :erlang.iolist_to_binary(Enum.reverse([name | acc]))}
   end
 
-  defp parse_name(<<length :: unsigned-integer-size(8),
-                    name   :: binary-size(length),
-                    body   :: binary>>, orig_body, result) do
-    parse_name(body, orig_body, result <> name <> ".")
+  defp parse_name_acc(<<length::8, name::binary-size(length), body::binary>>, orig_body, acc) do
+    parse_name_acc(body, orig_body, ["." | [name | acc]])
   end
 
   def parse_rdata(<<a1::8,a2::8,a3::8,a4::8>>, :a, :in, _) do
