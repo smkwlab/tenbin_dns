@@ -11,11 +11,6 @@ defmodule DNSpacket do
 
   @spec create(%DNSpacket{}) :: <<_::64, _::_*8>>
   def create(packet) do
-    create_optimized(packet)
-  end
-
-  # Optimized packet creation using iolists to reduce memory allocations
-  defp create_optimized(packet) do
     header = <<packet.id                ::16,
                packet.qr                ::1,
                packet.opcode            ::4,
@@ -45,7 +40,7 @@ defmodule DNSpacket do
 
   def create_question(question) do
     question
-    |> Enum.map(fn n -> create_question_item(n) end)
+    |> Enum.map(&create_question_item(&1))
     |> concat_binary_list
   end
 
@@ -60,7 +55,7 @@ defmodule DNSpacket do
 
   def create_answer(answer) do
     answer
-    |> Enum.map(fn n -> create_rr(n) end)
+    |> Enum.map(&create_rr(&1))
     |> concat_binary_list
   end
 
