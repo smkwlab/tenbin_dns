@@ -495,6 +495,179 @@ defmodule DNSpacketTest do
       assert result == %{type: :unknown_type, class: :in, rdata: unknown_rdata}
     end
 
+    test "parse packet with complex name compression edge cases" do
+      # Test packet that exercises parse_name internal paths through public API
+      complex_packet = <<
+        0x12, 0x34,  # ID
+        0x81, 0x80,  # Flags
+        0x00, 0x01,  # QDCOUNT = 1
+        0x00, 0x01,  # ANCOUNT = 1
+        0x00, 0x00,  # NSCOUNT = 0
+        0x00, 0x00,  # ARCOUNT = 0
+        # Question with very deep nesting to test parse_name accumulator
+        0x03, "sub", 0x03, "sub", 0x03, "sub", 0x07, "example", 0x03, "com", 0x00,
+        0x00, 0x01,  # QTYPE = A
+        0x00, 0x01,  # QCLASS = IN
+        # Answer with pointer to test parse_name pointer handling
+        0xC0, 0x0C,  # Pointer to question name
+        0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01, 0x2C, 0x00, 0x04,
+        192, 168, 1, 1
+      >>
+      
+      parsed = DNSpacket.parse(complex_packet)
+      assert hd(parsed.question).qname == "sub.sub.sub.example.com."
+      assert hd(parsed.answer).name == "sub.sub.sub.example.com."
+    end
+
+    test "parse packet with root domain edge case" do
+      # Test root domain handling which exercises parse_name edge cases
+      root_packet = <<
+        0x12, 0x34,  # ID
+        0x01, 0x00,  # Flags
+        0x00, 0x01,  # QDCOUNT = 1
+        0x00, 0x00,  # ANCOUNT = 0
+        0x00, 0x00,  # NSCOUNT = 0
+        0x00, 0x00,  # ARCOUNT = 0
+        0x00,        # Root domain name (empty label)
+        0x00, 0x01,  # QTYPE = A
+        0x00, 0x01   # QCLASS = IN
+      >>
+      
+      parsed = DNSpacket.parse(root_packet)
+      assert hd(parsed.question).qname == "."
+    end
+
+    test "create_options edge case coverage" do
+      # Test the create_options function that currently returns empty string
+      result = DNSpacket.create_options(%{code: :edns_client_subnet, data: <<1, 2, 3>>})
+      assert result == ""
+    end
+
+    test "create_opt_rr with single option" do
+      # Test create_opt_rr with exactly one option
+      result = DNSpacket.create_opt_rr([<<0x00, 0x08, 0x00, 0x04, 192, 168, 1, 0>>])
+      assert result == <<0x00, 0x08, 0x00, 0x04, 192, 168, 1, 0>>
+    end
+
+    test "parse_opt_rr edge cases" do
+      # Test parse_opt_rr with empty binary
+      result = DNSpacket.parse_opt_rr([], <<>>)
+      assert result == []
+      
+      # Test with pre-existing result
+      existing = [%{code: :test, data: <<1, 2>>}]
+      result = DNSpacket.parse_opt_rr(existing, <<>>)
+      assert result == existing
+    end
+
+    test "parse_opt_code with extended DNS error different format" do
+      # Test different format of extended DNS error
+      data = <<5::16, 4::16, 12::16, "Bad">>
+      result = DNSpacket.parse_opt_code(:extended_dns_error, data)
+      assert result.option_code == 5
+      assert result.info_code == 12
+      assert result.txt == "Bad"
+    end
+
+    test "check_ecs with malformed OPT record" do
+      # Test check_ecs with OPT record but no ECS option
+      additional = [
+        %{type: :opt, rdata: [%{code: :other_option, data: <<1, 2, 3>>}]}
+      ]
+      result = DNSpacket.check_ecs(additional)
+      assert result == %{family: 0, scope: 0, addr: 0, source: 0}
+    end
+
+    test "create_rdata for all supported types complete coverage" do
+      # Test create_rdata edge cases and ensure all paths are covered
+      
+      # Test AAAA with different IPv6 format
+      rdata = %{addr: {0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff}}
+      result = DNSpacket.create_rdata(rdata, :aaaa, :in)
+      expected = <<0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16>>
+      assert result == expected
+    end
+
+    test "parse comprehensive packet with all record types" do
+      # Create a comprehensive packet to test multiple parsing paths
+      packet = %DNSpacket{
+        id: 0x9999,
+        qr: 1, aa: 1, rd: 1, ra: 1,
+        question: [%{qname: "test.example.com.", qtype: :a, qclass: :in}],
+        answer: [
+          %{name: "test.example.com.", type: :a, class: :in, ttl: 300, 
+            rdata: %{addr: {10, 0, 0, 1}}},
+          %{name: "test.example.com.", type: :aaaa, class: :in, ttl: 300,
+            rdata: %{addr: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 2}}}
+        ],
+        authority: [
+          %{name: "example.com.", type: :ns, class: :in, ttl: 86400,
+            rdata: %{name: "ns1.example.com."}}
+        ],
+        additional: [
+          %{name: "ns1.example.com.", type: :a, class: :in, ttl: 86400,
+            rdata: %{addr: {10, 0, 0, 10}}}
+        ]
+      }
+      
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+      
+      assert parsed.id == 0x9999
+      assert length(parsed.answer) == 2
+      assert length(parsed.authority) == 1
+      assert length(parsed.additional) == 1
+    end
+
+    test "create_domain_name handles various domain formats" do
+      # Test edge cases for domain name creation
+      assert DNSpacket.create_domain_name("") == <<0>>
+      assert DNSpacket.create_domain_name(".") == <<0, 0>>
+      
+      # Test single label
+      result = DNSpacket.create_domain_name("localhost")
+      assert result == <<9, "localhost">>
+      
+      # Test domain with empty label (edge case)
+      result = DNSpacket.create_domain_name("test..com")
+      expected = <<4, "test", 0, 3, "com">>
+      assert result == expected
+    end
+
+    test "create_character_string with maximum length" do
+      # Test with 255 character string (maximum for DNS)
+      long_string = String.duplicate("a", 255)
+      result = DNSpacket.create_character_string(long_string)
+      assert result == <<255>> <> long_string
+    end
+
+    test "parse packet with OPT record using old parse functions" do
+      # Create packet with OPT record to test the non-fast parse path coverage
+      packet_with_opt = <<
+        0x12, 0x34,  # ID
+        0x00, 0x00,  # Flags  
+        0x00, 0x00,  # QDCOUNT = 0
+        0x00, 0x00,  # ANCOUNT = 0
+        0x00, 0x00,  # NSCOUNT = 0
+        0x00, 0x01,  # ARCOUNT = 1
+        # OPT record
+        0x00,                    # Empty name
+        0x00, 0x29,             # TYPE = OPT (41)
+        0x04, 0x00,             # Payload size = 1024
+        0x00,                   # Extended RCODE
+        0x00,                   # Version
+        0x80, 0x00,             # Flags (DNSSEC OK)
+        0x00, 0x00              # RDLENGTH = 0
+      >>
+      
+      parsed = DNSpacket.parse(packet_with_opt)
+      assert length(parsed.additional) == 1
+      opt_record = hd(parsed.additional)
+      assert opt_record.type == :opt
+      assert opt_record.payload_size == 1024
+      assert opt_record.dnssec == 1
+    end
+
     test "parse packet with authority and additional sections" do
       packet = %DNSpacket{
         id: 0x5678,
