@@ -1022,15 +1022,6 @@ defmodule DNSpacket do
     %{code: code, data: data}
   end
 
-  def check_ecs([]), do: %{family: 0, scope: 0, addr: 0, source: 0}
-  def check_ecs(additional) do
-    case Enum.find(additional, &match?(%{type: :opt}, &1)) do
-      %{rdata: rdata} ->
-        Enum.find(rdata, %{family: 0, scope: 0, addr: 0, source: 0},
-                  &match?(%{code: :edns_client_subnet}, &1))
-      _ -> %{family: 0, scope: 0, addr: 0, source: 0}
-    end
-  end
 
   @doc """
   Parses EDNS information from additional records into a structured format.
