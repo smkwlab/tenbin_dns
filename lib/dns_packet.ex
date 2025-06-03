@@ -11,6 +11,8 @@ defmodule DNSpacket do
   aggressive function inlining, and efficient binary pattern matching.
   """
 
+  import Bitwise
+
   # Aggressive inlining for maximum speed (over memory efficiency)
   @compile {:inline, [
     create_character_string: 1,
@@ -28,7 +30,7 @@ defmodule DNSpacket do
   @compile [:native, {:hipe, [:verbose, :o3]}]
 
   defstruct id: 0, qr: 0, opcode: 0, aa: 0, tc: 0, rd: 0, ra: 0, z: 0, ad: 0, cd: 0, rcode: 0,
-               question: [], answer: [], authority: [], additional: []
+               question: [], answer: [], authority: [], additional: [], edns_info: nil
 
   @type t :: %__MODULE__{
     id: non_neg_integer(),
@@ -45,7 +47,8 @@ defmodule DNSpacket do
     question: list(map()),
     answer: list(map()),
     authority: list(map()),
-    additional: list(map())
+    additional: list(map()),
+    edns_info: map() | nil
   }
 
   @spec create(t()) :: <<_::64, _::_*8>>
@@ -207,6 +210,8 @@ defmodule DNSpacket do
     {rest3, authority}  = parse_answer_fast(rest2, nscount, orig_body, [])
     {_, additional}     = parse_answer_fast(rest3, arcount, orig_body, [])
 
+    edns_info = parse_edns_info(additional)
+
     %DNSpacket{
       id: id,
       qr: qr,
@@ -223,6 +228,7 @@ defmodule DNSpacket do
       answer: answer,
       authority: authority,
       additional: additional,
+      edns_info: edns_info,
     }
   end
 
@@ -460,5 +466,162 @@ defmodule DNSpacket do
                   &match?(%{code: :edns_client_subnet}, &1))
       _ -> %{family: 0, scope: 0, addr: 0, source: 0}
     end
+  end
+
+  @doc """
+  Parses EDNS information from additional records into a structured format.
+  
+  Returns a map with parsed EDNS options for easy access, or nil if no EDNS data found.
+  Supports ECS (EDNS Client Subnet), cookies, NSID, extended DNS errors, and other options.
+  """
+  def parse_edns_info(additional) do
+    case Enum.find(additional, &match?(%{type: :opt}, &1)) do
+      %{rdata: rdata} = opt_record ->
+        parsed_options = parse_edns_options(rdata)
+        %{
+          payload_size: Map.get(opt_record, :payload_size, 512),
+          ex_rcode: Map.get(opt_record, :ex_rcode, 0),
+          version: Map.get(opt_record, :version, 0),
+          dnssec: Map.get(opt_record, :dnssec, 0),
+          z: Map.get(opt_record, :z, 0),
+          options: parsed_options
+        }
+      _ -> nil
+    end
+  end
+
+  defp parse_edns_options(rdata) do
+    Enum.reduce(rdata, %{}, fn option, acc ->
+      case option.code do
+        :edns_client_subnet ->
+          Map.put(acc, :ecs, parse_ecs_option(option))
+        :cookie ->
+          Map.put(acc, :cookie, parse_cookie_option(option))
+        :nsid ->
+          Map.put(acc, :nsid, parse_nsid_option(option))
+        :extended_dns_error ->
+          Map.put(acc, :extended_dns_error, parse_extended_dns_error_option(option))
+        :edns_tcp_keepalive ->
+          Map.put(acc, :tcp_keepalive, parse_tcp_keepalive_option(option))
+        :padding ->
+          Map.put(acc, :padding, parse_padding_option(option))
+        _ ->
+          # Store unknown options in a generic format
+          unknown_options = Map.get(acc, :unknown, [])
+          Map.put(acc, :unknown, [option | unknown_options])
+      end
+    end)
+  end
+
+  defp parse_ecs_option(%{family: family, source: source, scope: scope, addr: addr}) do
+    %{
+      family: family,
+      client_subnet: parse_ecs_address(family, addr, source),
+      source_prefix: source,
+      scope_prefix: scope
+    }
+  end
+
+  defp parse_ecs_address(1, addr_bytes, prefix_len) when is_binary(addr_bytes) do
+    # IPv4 address
+    padded = pad_address(addr_bytes, 4)
+    <<a::8, b::8, c::8, d::8>> = padded
+    apply_prefix_mask({a, b, c, d}, prefix_len, 32)
+  end
+
+  defp parse_ecs_address(2, addr_bytes, prefix_len) when is_binary(addr_bytes) do
+    # IPv6 address
+    padded = pad_address(addr_bytes, 16)
+    <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>> = padded
+    apply_prefix_mask({a1, a2, a3, a4, a5, a6, a7, a8}, prefix_len, 128)
+  end
+
+  defp parse_ecs_address(_, addr_bytes, _prefix_len) do
+    # Unknown family, return raw bytes
+    addr_bytes
+  end
+
+  defp pad_address(addr_bytes, target_size) do
+    current_size = byte_size(addr_bytes)
+    if current_size < target_size do
+      addr_bytes <> <<0::size((target_size - current_size) * 8)>>
+    else
+      binary_part(addr_bytes, 0, target_size)
+    end
+  end
+
+  defp apply_prefix_mask(addr_tuple, prefix_len, max_bits) when prefix_len >= max_bits do
+    addr_tuple
+  end
+
+  defp apply_prefix_mask(addr_tuple, prefix_len, _max_bits) when prefix_len <= 0 do
+    # Return zeroed address for prefix length 0 or negative
+    case tuple_size(addr_tuple) do
+      4 -> {0, 0, 0, 0}
+      8 -> {0, 0, 0, 0, 0, 0, 0, 0}
+      _ -> addr_tuple
+    end
+  end
+
+  defp apply_prefix_mask(addr_tuple, prefix_len, max_bits) do
+    # Apply prefix mask by zeroing bits beyond prefix length
+    addr_list = Tuple.to_list(addr_tuple)
+    element_bits = div(max_bits, length(addr_list))
+
+    {masked_list, _} = Enum.map_reduce(addr_list, prefix_len, fn element, remaining_bits ->
+      cond do
+        remaining_bits <= 0 ->
+          {0, 0}
+        min(remaining_bits, element_bits) >= element_bits ->
+          {element, remaining_bits - element_bits}
+        true ->
+          bits_to_keep = min(remaining_bits, element_bits)
+          mask = bnot((1 <<< (element_bits - bits_to_keep)) - 1)
+          {element &&& mask, 0}
+      end
+    end)
+
+    List.to_tuple(masked_list)
+  end
+
+  defp parse_cookie_option(%{cookie: cookie_data}) do
+    case byte_size(cookie_data) do
+      8 ->
+        %{client: cookie_data, server: nil}
+      size when size >= 16 and size <= 40 ->
+        <<client::binary-size(8), server::binary>> = cookie_data
+        %{client: client, server: server}
+      _ ->
+        %{client: cookie_data, server: nil}
+    end
+  end
+
+  defp parse_nsid_option(%{data: nsid_data}) do
+    # NSID is typically ASCII text
+    case String.valid?(nsid_data) do
+      true -> nsid_data
+      false -> Base.encode16(nsid_data, case: :lower)
+    end
+  end
+
+  defp parse_extended_dns_error_option(%{info_code: info_code, txt: txt}) do
+    %{
+      info_code: info_code,
+      extra_text: txt
+    }
+  end
+
+  defp parse_tcp_keepalive_option(%{data: data}) do
+    case byte_size(data) do
+      0 -> %{timeout: nil}
+      2 -> 
+        <<timeout::16>> = data
+        %{timeout: timeout}
+      _ -> %{timeout: nil, raw_data: data}
+    end
+  end
+
+  defp parse_padding_option(%{data: data}) do
+    %{length: byte_size(data)}
   end
 end

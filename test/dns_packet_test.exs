@@ -694,4 +694,371 @@ defmodule DNSpacketTest do
       assert hd(parsed.additional).type == :a
     end
   end
+
+  describe "parse_edns_info/1" do
+    test "returns nil when no OPT record present" do
+      additional = [
+        %{name: "ns1.example.com.", type: :a, class: :in, ttl: 300, 
+          rdata: %{addr: {192, 168, 1, 1}}}
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result == nil
+    end
+
+    test "parses basic OPT record without options" do
+      additional = [
+        %{
+          name: "",
+          type: :opt,
+          payload_size: 1232,
+          ex_rcode: 0,
+          version: 0,
+          dnssec: 1,
+          z: 0,
+          rdata: []
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.payload_size == 1232
+      assert result.ex_rcode == 0
+      assert result.version == 0
+      assert result.dnssec == 1
+      assert result.z == 0
+      assert result.options == %{}
+    end
+
+    test "parses EDNS Client Subnet option with IPv4" do
+      additional = [
+        %{
+          type: :opt,
+          payload_size: 1232,
+          ex_rcode: 0,
+          version: 0,
+          dnssec: 0,
+          z: 0,
+          rdata: [
+            %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<192, 168, 1>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.ecs.family == 1
+      assert result.options.ecs.client_subnet == {192, 168, 1, 0}
+      assert result.options.ecs.source_prefix == 24
+      assert result.options.ecs.scope_prefix == 0
+    end
+
+    test "parses EDNS Client Subnet option with IPv6" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :edns_client_subnet, family: 2, source: 48, scope: 0, 
+              addr: <<0x2001::16, 0xdb8::16, 0x1234::16>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.ecs.family == 2
+      assert result.options.ecs.client_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
+      assert result.options.ecs.source_prefix == 48
+    end
+
+    test "parses cookie option - client only" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :cookie, cookie: <<1, 2, 3, 4, 5, 6, 7, 8>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.cookie.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+      assert result.options.cookie.server == nil
+    end
+
+    test "parses cookie option - client and server" do
+      client_cookie = <<1, 2, 3, 4, 5, 6, 7, 8>>
+      server_cookie = <<9, 10, 11, 12, 13, 14, 15, 16>>
+      full_cookie = client_cookie <> server_cookie
+      
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :cookie, cookie: full_cookie}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.cookie.client == client_cookie
+      assert result.options.cookie.server == server_cookie
+    end
+
+    test "parses NSID option with ASCII text" do
+      nsid_data = "ns1.example.com"
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :nsid, data: nsid_data}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.nsid == nsid_data
+    end
+
+    test "parses NSID option with binary data" do
+      nsid_data = <<0xFF, 0xFE, 0xFD>>
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :nsid, data: nsid_data}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.nsid == "fffefd"
+    end
+
+    test "parses extended DNS error option" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :extended_dns_error, info_code: 18, txt: "Blocked by policy"}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.extended_dns_error.info_code == 18
+      assert result.options.extended_dns_error.extra_text == "Blocked by policy"
+    end
+
+    test "parses TCP keepalive option with timeout" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :edns_tcp_keepalive, data: <<300::16>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.tcp_keepalive.timeout == 300
+    end
+
+    test "parses TCP keepalive option without timeout" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :edns_tcp_keepalive, data: <<>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.tcp_keepalive.timeout == nil
+    end
+
+    test "parses padding option" do
+      padding_data = <<0, 0, 0, 0, 0, 0, 0, 0>>
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :padding, data: padding_data}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.padding.length == 8
+    end
+
+    test "handles unknown EDNS options" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :unknown_option, data: <<1, 2, 3, 4>>},
+            %{code: :another_unknown, data: <<5, 6>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert length(result.options.unknown) == 2
+    end
+
+    test "parses multiple EDNS options together" do
+      additional = [
+        %{
+          type: :opt,
+          payload_size: 4096,
+          rdata: [
+            %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<10, 0, 0>>},
+            %{code: :cookie, cookie: <<1, 2, 3, 4, 5, 6, 7, 8>>},
+            %{code: :nsid, data: "server1"},
+            %{code: :padding, data: <<0, 0, 0, 0>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.payload_size == 4096
+      assert result.options.ecs.client_subnet == {10, 0, 0, 0}
+      assert result.options.cookie.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+      assert result.options.nsid == "server1"
+      assert result.options.padding.length == 4
+    end
+  end
+
+  describe "ECS address parsing edge cases" do
+    test "handles IPv4 prefix length 0" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :edns_client_subnet, family: 1, source: 0, scope: 0, addr: <<>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.ecs.client_subnet == {0, 0, 0, 0}
+    end
+
+    test "handles IPv6 prefix length 0" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :edns_client_subnet, family: 2, source: 0, scope: 0, addr: <<>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.ecs.client_subnet == {0, 0, 0, 0, 0, 0, 0, 0}
+    end
+
+    test "handles IPv4 with partial bytes" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :edns_client_subnet, family: 1, source: 12, scope: 0, addr: <<203, 128>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      # Should mask out bits beyond prefix length
+      assert result.options.ecs.client_subnet == {203, 128, 0, 0}
+    end
+
+    test "handles unknown address family" do
+      additional = [
+        %{
+          type: :opt,
+          rdata: [
+            %{code: :edns_client_subnet, family: 99, source: 16, scope: 0, 
+              addr: <<1, 2, 3, 4>>}
+          ]
+        }
+      ]
+      
+      result = DNSpacket.parse_edns_info(additional)
+      assert result.options.ecs.client_subnet == <<1, 2, 3, 4>>
+    end
+  end
+
+  describe "packet parsing with edns_info" do
+    test "parses packet and includes edns_info for OPT record" do
+      # Create a simple packet with OPT record (no EDNS options for now)
+      packet_with_edns = <<
+        0x12, 0x34,  # ID
+        0x81, 0x80,  # Flags (response)
+        0x00, 0x01,  # QDCOUNT = 1
+        0x00, 0x01,  # ANCOUNT = 1
+        0x00, 0x00,  # NSCOUNT = 0
+        0x00, 0x01,  # ARCOUNT = 1 (OPT record)
+        # Question: example.com A IN
+        0x07, "example", 0x03, "com", 0x00,
+        0x00, 0x01,  # QTYPE = A
+        0x00, 0x01,  # QCLASS = IN
+        # Answer: example.com A 192.168.1.1
+        0xC0, 0x0C,  # Pointer to question name
+        0x00, 0x01,  # TYPE = A
+        0x00, 0x01,  # CLASS = IN
+        0x00, 0x00, 0x01, 0x2C,  # TTL = 300
+        0x00, 0x04,  # RDLENGTH = 4
+        192, 168, 1, 1,  # IP address
+        # OPT record without options
+        0x00,                      # Empty name
+        0x00, 0x29,               # TYPE = OPT (41)
+        0x04, 0xD0,               # Payload size = 1232
+        0x00,                     # Extended RCODE
+        0x00,                     # Version
+        0x80, 0x00,               # Flags (DNSSEC OK)
+        0x00, 0x00                # RDLENGTH = 0 (no options)
+      >>
+      
+      parsed = DNSpacket.parse(packet_with_edns)
+      
+      # Verify basic packet structure
+      assert parsed.id == 0x1234
+      assert length(parsed.answer) == 1
+      assert length(parsed.additional) == 1
+      
+      # Verify EDNS info is parsed
+      assert parsed.edns_info != nil
+      assert parsed.edns_info.payload_size == 1232
+      assert parsed.edns_info.dnssec == 1
+      assert parsed.edns_info.options == %{}
+    end
+
+    test "parses packet without OPT record and sets edns_info to nil" do
+      # Create a simple packet without EDNS
+      simple_packet = <<
+        0x12, 0x34,  # ID
+        0x81, 0x80,  # Flags (response)
+        0x00, 0x01,  # QDCOUNT = 1
+        0x00, 0x01,  # ANCOUNT = 1
+        0x00, 0x00,  # NSCOUNT = 0
+        0x00, 0x00,  # ARCOUNT = 0
+        # Question: example.com A IN
+        0x07, "example", 0x03, "com", 0x00,
+        0x00, 0x01,  # QTYPE = A
+        0x00, 0x01,  # QCLASS = IN
+        # Answer: example.com A 192.168.1.1
+        0xC0, 0x0C,  # Pointer to question name
+        0x00, 0x01,  # TYPE = A
+        0x00, 0x01,  # CLASS = IN
+        0x00, 0x00, 0x01, 0x2C,  # TTL = 300
+        0x00, 0x04,  # RDLENGTH = 4
+        192, 168, 1, 1  # IP address
+      >>
+      
+      parsed = DNSpacket.parse(simple_packet)
+      
+      assert parsed.id == 0x1234
+      assert parsed.edns_info == nil
+    end
+  end
 end
