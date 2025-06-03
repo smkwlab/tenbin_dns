@@ -9,6 +9,7 @@ defmodule DNSTest do
       assert DNS.type(15) == :mx
       assert DNS.type(16) == :txt
       assert DNS.type(28) == :aaaa
+      assert DNS.type(41) == :opt
       assert DNS.type(255) == :any
       assert DNS.type(257) == :caa
     end
@@ -26,6 +27,7 @@ defmodule DNSTest do
       assert DNS.type_code(:mx) == 15
       assert DNS.type_code(:txt) == 16
       assert DNS.type_code(:aaaa) == 28
+      assert DNS.type_code(:opt) == 41
       assert DNS.type_code(:any) == 255
       assert DNS.type_code(:caa) == 257
     end
