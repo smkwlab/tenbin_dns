@@ -1115,15 +1115,12 @@ defmodule DNSpacket do
   """
   def parse_edns_info(additional) do
     case Enum.find(additional, &match?(%{type: :opt}, &1)) do
-      %{rdata: rdata} = opt_record ->
-        # Determine options based on rdata format
-        options = case rdata do
-          options when is_map(options) -> options  # Direct use - optimized path
-          [] -> %{}  # Empty options
-          keyword_list when is_list(keyword_list) -> convert_keyword_list_to_options_map(keyword_list)  # Legacy format
-        end
-        
+      %{rdata: options} = opt_record when is_map(options) ->
+        # Direct use - optimized path for Map format
         build_edns_info_result(opt_record, options)
+      %{rdata: []} = opt_record ->
+        # Empty options case
+        build_edns_info_result(opt_record, %{})
       _ -> nil
     end
   end
@@ -1137,19 +1134,6 @@ defmodule DNSpacket do
       z: Map.get(opt_record, :z, 0),
       options: options
     }
-  end
-
-  defp convert_keyword_list_to_options_map(keyword_list) do
-    # Convert keyword list to map, properly handling multiple :unknown keys
-    Enum.reduce(keyword_list, %{}, fn {key, value}, acc ->
-      if key == :unknown do
-        # Handle unknown options by accumulating them in a list
-        unknown_options = Map.get(acc, :unknown, [])
-        Map.put(acc, :unknown, [value | unknown_options])
-      else
-        Map.put(acc, key, value)
-      end
-    end)
   end
 
 
