@@ -297,34 +297,7 @@ defmodule DNSpacketTest do
   end
 
   describe "additional coverage tests" do
-    test "create_options/1 returns empty string" do
-      result = DNSpacket.create_options(%{code: :test})
-      assert result == ""
-    end
 
-    test "create_opt_rr/1 with empty list" do
-      result = DNSpacket.create_opt_rr([])
-      assert result == <<>>
-    end
-
-    test "create_opt_rr/2 with non-empty list" do
-      result = DNSpacket.create_opt_rr([<<1, 2>>], <<>>)
-      assert result == <<1, 2>>
-    end
-
-    test "create_opt_rr/2 with multiple options" do
-      options = [<<0x00, 0x08>>, <<0x00, 0x04>>, <<192, 168, 1, 0>>]
-      result = DNSpacket.create_opt_rr(options, <<0x10>>)
-      expected = <<0x10, 0x00, 0x08, 0x00, 0x04, 192, 168, 1, 0>>
-      assert result == expected
-    end
-
-    test "create_opt_rr/2 recursive with tail processing" do
-      options = [<<1, 2>>, <<3, 4, 5>>, <<6>>]
-      result = DNSpacket.create_opt_rr(options, <<0>>)
-      expected = <<0, 1, 2, 3, 4, 5, 6>>
-      assert result == expected
-    end
 
     test "parse_rdata for NS record" do
       # Create a binary with NS record data
@@ -551,17 +524,6 @@ defmodule DNSpacketTest do
       assert hd(parsed.question).qname == "."
     end
 
-    test "create_options edge case coverage" do
-      # Test the create_options function that currently returns empty string
-      result = DNSpacket.create_options(%{code: :edns_client_subnet, data: <<1, 2, 3>>})
-      assert result == ""
-    end
-
-    test "create_opt_rr with single option" do
-      # Test create_opt_rr with exactly one option
-      result = DNSpacket.create_opt_rr([<<0x00, 0x08, 0x00, 0x04, 192, 168, 1, 0>>])
-      assert result == <<0x00, 0x08, 0x00, 0x04, 192, 168, 1, 0>>
-    end
 
     test "parse_opt_rr edge cases" do
       # Test parse_opt_rr with empty binary

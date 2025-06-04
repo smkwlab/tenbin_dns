@@ -24,3 +24,6 @@ tenbin_dns-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Claude Code local settings
+.claude/settings.local.json
