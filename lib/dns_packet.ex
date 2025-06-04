@@ -949,6 +949,25 @@ defmodule DNSpacket do
   end
 
   @doc false
+  def create_rdata(rdata, :ds, _) do
+    <<rdata.key_tag::16, rdata.algorithm::8, rdata.digest_type::8, rdata.digest::binary>>
+  end
+
+  @doc false
+  def create_rdata(rdata, :rrsig, _) do
+    <<rdata.type_covered::16, rdata.algorithm::8, rdata.labels::8, rdata.original_ttl::32,
+      rdata.signature_expiration::32, rdata.signature_inception::32, rdata.key_tag::16>> <>
+    create_domain_name(rdata.signer_name) <>
+    <<rdata.signature::binary>>
+  end
+
+  @doc false
+  def create_rdata(rdata, :nsec, _) do
+    create_domain_name(rdata.next_domain_name) <>
+    create_type_bitmap(rdata.type_bit_maps)
+  end
+
+  @doc false
   def create_rdata(rdata, type, _) when type in [:svcb, :https] do
     # Basic SVCB/HTTPS support - priority and target name only
     <<rdata.priority::16>> <> create_domain_name(rdata.target)
@@ -961,6 +980,80 @@ defmodule DNSpacket do
   end
 
   defp add_rdlength(rdata), do: <<byte_size(rdata)::16>> <> rdata
+
+  @doc false
+  def create_type_bitmap(type_list) when is_list(type_list) do
+    # Convert type atoms to numbers and create bitmap
+    type_numbers = Enum.map(type_list, &DNS.type_code/1)
+    create_type_bitmap_from_numbers(type_numbers)
+  end
+
+  def create_type_bitmap(bitmap) when is_binary(bitmap), do: bitmap
+
+  defp create_type_bitmap_from_numbers(type_numbers) do
+    # Group types by window (each window covers 256 types)
+    windows = Enum.group_by(type_numbers, &div(&1, 256))
+    
+    # Create bitmap for each window
+    Enum.reduce(windows, <<>>, fn {window, types}, acc ->
+      bitmap = create_window_bitmap(types, window * 256)
+      window_data = <<window::8, byte_size(bitmap)::8, bitmap::binary>>
+      acc <> window_data
+    end)
+  end
+
+  defp create_window_bitmap(types, window_base) do
+    # Create bitmap for types within a window
+    relative_types = Enum.map(types, &(&1 - window_base))
+    max_type = Enum.max(relative_types)
+    byte_count = div(max_type, 8) + 1
+    
+    # Initialize bitmap with zeros
+    bitmap = <<0::size(byte_count * 8)>>
+    
+    # Set bits for each type
+    Enum.reduce(relative_types, bitmap, fn type, acc ->
+      byte_pos = div(type, 8)
+      bit_pos = 7 - rem(type, 8)
+      set_bit_in_bitmap(acc, byte_pos, bit_pos)
+    end)
+  end
+
+  defp set_bit_in_bitmap(bitmap, byte_pos, bit_pos) do
+    <<prefix::binary-size(byte_pos), byte::8, suffix::binary>> = bitmap
+    new_byte = byte ||| (1 <<< bit_pos)
+    prefix <> <<new_byte::8>> <> suffix
+  end
+
+  @doc false
+  def parse_type_bitmap(<<>>), do: []
+
+  def parse_type_bitmap(<<window::8, length::8, bitmap::binary-size(length), rest::binary>>) do
+    types = parse_window_bitmap(bitmap, window * 256)
+    types ++ parse_type_bitmap(rest)
+  end
+
+  def parse_type_bitmap(data), do: data  # Return raw data if parsing fails
+
+  defp parse_window_bitmap(bitmap, window_base) do
+    bitmap
+    |> :binary.bin_to_list()
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {byte, byte_index} ->
+      parse_byte_bitmap(byte, window_base + byte_index * 8)
+    end)
+  end
+
+  defp parse_byte_bitmap(byte, base_type) do
+    0..7
+    |> Enum.filter(fn bit_pos ->
+      (byte &&& (1 <<< (7 - bit_pos))) != 0
+    end)
+    |> Enum.map(fn bit_pos ->
+      type_code = base_type + bit_pos
+      DNS.type(type_code) || type_code
+    end)
+  end
 
   @doc false
   def create_domain_name(name) do
@@ -1341,6 +1434,52 @@ defmodule DNSpacket do
       protocol: protocol,
       algorithm: algorithm,
       public_key: public_key,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<key_tag     :: unsigned-integer-size(16),
+                    algorithm   :: unsigned-integer-size(8),
+                    digest_type :: unsigned-integer-size(8),
+                    digest      :: binary>>, :ds, _, _) do
+    %{
+      key_tag: key_tag,
+      algorithm: algorithm,
+      digest_type: digest_type,
+      digest: digest,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<type_covered         :: unsigned-integer-size(16),
+                    algorithm            :: unsigned-integer-size(8),
+                    labels               :: unsigned-integer-size(8),
+                    original_ttl         :: unsigned-integer-size(32),
+                    signature_expiration :: unsigned-integer-size(32),
+                    signature_inception  :: unsigned-integer-size(32),
+                    key_tag              :: unsigned-integer-size(16),
+                    tmp_body             :: binary>>, :rrsig, _, orig_body) do
+    {rest, _, signer_name} = parse_name(tmp_body, orig_body, "")
+    %{
+      type_covered: type_covered,
+      algorithm: algorithm,
+      labels: labels,
+      original_ttl: original_ttl,
+      signature_expiration: signature_expiration,
+      signature_inception: signature_inception,
+      key_tag: key_tag,
+      signer_name: signer_name,
+      signature: rest,
+    }
+  end
+
+  @doc false
+  def parse_rdata(rdata, :nsec, _, orig_body) do
+    {rest, _, next_domain_name} = parse_name(rdata, orig_body, "")
+    type_bit_maps = parse_type_bitmap(rest)
+    %{
+      next_domain_name: next_domain_name,
+      type_bit_maps: type_bit_maps,
     }
   end
 
