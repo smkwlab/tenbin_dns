@@ -1,7 +1,7 @@
-defmodule TenbinDnsTest do
+defmodule Tenbin.DNSTest do
   use ExUnit.Case
 
-  doctest TenbinDns
+  doctest Tenbin.DNS
 
   describe "Stats on create" do
     setup do

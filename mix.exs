@@ -1,13 +1,23 @@
-defmodule TenbinDns.MixProject do
+defmodule Tenbin.DNS.MixProject do
   use Mix.Project
+
+  @version "0.6.0"
 
   def project do
     [
       app: :tenbin_dns,
-      version: "0.6.0",
+      version: @version,
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      
+      # Documentation
+      name: "Tenbin.DNS",
+      description: "High-performance DNS packet parsing and creation library for Elixir",
+      source_url: "https://github.com/smkwlab/tenbin_dns",
+      homepage_url: "https://github.com/smkwlab/tenbin_dns",
+      docs: docs(),
+      package: package()
     ]
   end
 
@@ -28,6 +38,41 @@ defmodule TenbinDns.MixProject do
       {:benchee, "~> 1.0", only: [:dev, :test]}
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+    ]
+  end
+
+  # Documentation configuration
+  defp docs do
+    [
+      main: "Tenbin.DNS",
+      name: "Tenbin.DNS",
+      source_ref: "v#{@version}",
+      source_url: "https://github.com/smkwlab/tenbin_dns",
+      extras: [
+        "README.md",
+        "docs/EDNS_NAMING_CONVENTION.md"
+      ],
+      groups_for_extras: [
+        "Guides": ~r/docs\/.*/
+      ],
+      groups_for_modules: [
+        "Core": [Tenbin.DNS, DNSpacket, DNS]
+      ],
+      authors: ["Toshihiko SHIMOKAWA"]
+    ]
+  end
+
+  # Package configuration for Hex
+  defp package do
+    [
+      description: "High-performance DNS packet parsing and creation library with EDNS hybrid structure",
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE docs/EDNS_NAMING_CONVENTION.md),
+      licenses: ["MIT"],
+      links: %{
+        "GitHub" => "https://github.com/smkwlab/tenbin_dns",
+        "Documentation" => "https://hexdocs.pm/tenbin_dns"
+      },
+      maintainers: ["Toshihiko SHIMOKAWA"]
     ]
   end
 end

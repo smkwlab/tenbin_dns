@@ -1,6 +1,38 @@
 defmodule DNS do
   @moduledoc """
-  DNS related constants
+  DNS constants and mappings for types, classes, response codes, and EDNS options.
+
+  This module provides high-performance constant mappings for DNS protocol values.
+  All lookups are compile-time optimized with pre-computed maps and aggressive
+  function inlining for maximum speed.
+
+  ## Features
+
+  - **DNS Record Types**: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA, OPT, etc.
+  - **DNS Classes**: IN (Internet), CH (Chaos), HS (Hesiod)
+  - **Response Codes**: NOERROR, NXDOMAIN, REFUSED, etc.
+  - **EDNS Options**: ECS, cookies, NSID, extended DNS errors, etc.
+  - **Bidirectional Mapping**: Convert between numeric codes and atoms
+
+  ## Usage
+
+      # DNS record types
+      DNS.type_code(:a)        # => 1
+      DNS.type(1)              # => :a
+
+      # DNS classes  
+      DNS.class_code(:in)      # => 1
+      DNS.class(1)             # => :in
+
+      # Response codes
+      DNS.rcode_code(:nxdomain) # => 3
+      DNS.rcode(3)              # => :nxdomain
+
+      # EDNS options
+      DNS.option_code(:edns_client_subnet) # => 8
+      DNS.option(8)                        # => :edns_client_subnet
+
+  All constants are based on IANA DNS parameter assignments and RFCs.
   """
 
   # Inline DNS constant lookups for maximum performance

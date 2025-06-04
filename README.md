@@ -1,6 +1,6 @@
-# TenbinDNS
+# Tenbin.DNS
 
-A high-performance Elixir library for DNS packet parsing and creation. TenbinDNS provides efficient handling of DNS protocol operations with support for standard DNS records, EDNS0, and domain name compression.
+A high-performance Elixir library for DNS packet parsing and creation. Tenbin.DNS provides efficient handling of DNS protocol operations with support for standard DNS records, EDNS0, and domain name compression.
 
 ## Features
 
@@ -81,7 +81,7 @@ mix docs
 
 ## Performance
 
-TenbinDNS is optimized for high-performance DNS operations:
+Tenbin.DNS is optimized for high-performance DNS operations:
 - Compile-time optimization with native compilation
 - Aggressive function inlining for speed-critical paths
 - Efficient binary pattern matching for protocol handling
