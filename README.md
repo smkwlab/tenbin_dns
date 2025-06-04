@@ -26,7 +26,7 @@ Add `tenbin_dns` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:tenbin_dns, "~> 0.6.1"}
+    {:tenbin_dns, "~> 0.7.0"}
   ]
 end
 ```
