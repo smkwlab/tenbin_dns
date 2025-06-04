@@ -1,38 +1,39 @@
 # EDNS Naming Convention
 
-このドキュメントでは、Tenbin.DNSライブラリのEDNSハイブリッド構造で使用される命名規則について説明します。
+This document explains the naming conventions used in the EDNS direct-access structure of the Tenbin.DNS library.
 
-## 概要
+## Overview
 
-Tenbin.DNSライブラリは、EDNSオプションに対してハイブリッド構造を使用しています。この構造は、一般的なEDNSオプションをトップレベルにフラット化して直接アクセスを可能にし、未知のオプションは別のマップで保持します。
+The Tenbin.DNS library uses an optimized structure for EDNS options. This structure flattens common EDNS options to the top level for direct access while preserving unknown options in a separate map.
 
-## 命名規則の原則
+## Naming Convention Principles
 
-### 1. 業界標準の略語を使用
+### 1. Use Industry-Standard Abbreviations
 
-よく知られたオプションで業界標準の略語がある場合は、その略語を使用します：
+For well-known options with established industry-standard abbreviations, use those abbreviations:
 
-| RFC名 | 略語 | フラット化フィールド |
-|-------|------|---------------------|
+| RFC Name | Abbreviation | Flattened Fields |
+|----------|-------------|------------------|
 | `edns_client_subnet` | ECS | `ecs_family`, `ecs_subnet`, `ecs_source_prefix`, `ecs_scope_prefix` |
 | `nsid` | NSID | `nsid` |
 | `dau`, `dhu`, `n3u` | - | `dau_algorithms`, `dhu_algorithms`, `n3u_algorithms` |
 
-**理由**: 
-- DNSエンジニアに馴染みがある（`dig`コマンド、Go miekg/dns、Python dnspythonでも使用）
-- タイピング効率が良い
-- 頻繁に使用されるオプションのため
+**Rationale**: 
+- Familiar to DNS engineers (used in `dig` command, Go miekg/dns, Python dnspython)
+- Typing efficiency
+- Frequently used options
 
-### 2. 複雑なオプションは完全名を使用
+### 2. Use Full Names for Complex Options
 
-標準略語がない、または複雑なオプションの場合は完全名を使用します：
+For options without standard abbreviations or complex options, use full names:
 
-| RFC名 | フラット化フィールド |
-|-------|---------------------|
+| RFC Name | Flattened Fields |
+|----------|------------------|
 | `extended_dns_error` | `extended_dns_error_info_code`, `extended_dns_error_extra_text` |
 | `edns_tcp_keepalive` | `edns_tcp_keepalive_timeout`, `edns_tcp_keepalive_raw_data` |
 | `cookie` | `cookie_client`, `cookie_server` |
 | `padding` | `padding_length` |
+| `edns_expire` | `edns_expire_expire` |
 | `chain` | `chain_closest_encloser` |
 | `edns_key_tag` | `edns_key_tag_key_tags` |
 | `edns_client_tag` | `edns_client_tag_tag` |
@@ -44,112 +45,60 @@ Tenbin.DNSライブラリは、EDNSオプションに対してハイブリッド
 | `umbrella_ident` | `umbrella_ident_ident` |
 | `deviceid` | `deviceid_device_id` |
 
-**理由**:
-- 明確性と可読性
-- RFC仕様との一貫性
-- 誤解を避ける
+**Rationale**:
+- Clear and descriptive
+- Prevents naming conflicts
+- Self-documenting code
+- Consistent with RFC terminology
 
-### 3. 未知オプション
+### 3. Preserve Unknown Options
 
-未知のEDNSオプションは`unknown_options`マップに格納されます：
+Options not recognized by the library are stored in the `unknown_options` map:
 
 ```elixir
 unknown_options: %{
-  123 => <<1, 2, 3, 4>>,  # コード123の未知オプション
-  456 => <<5, 6, 7, 8>>   # コード456の未知オプション
+  123 => <<1, 2, 3, 4>>,  # Option code 123 with binary data
+  456 => <<5, 6, 7, 8>>   # Option code 456 with binary data
 }
 ```
 
-## 使用例
+## Performance Benefits
 
-### アクセスパターン
+This structure provides significant performance improvements over nested access:
 
-```elixir
-# 頻繁に使用される（短縮形で効率的）
-case edns_info do
-  %{ecs_family: family, ecs_subnet: subnet} when not is_nil(family) ->
-    process_ecs(family, subnet)
-  _ ->
-    :no_ecs
-end
+- **ECS access**: 35.3% faster
+- **Cookie access**: 69.0% faster  
+- **Unknown options access**: 32.9% faster
 
-# シンプルなオプション
-if edns_info.nsid do
-  IO.puts("Name Server ID: #{edns_info.nsid}")
-end
-
-# 複雑なオプション（完全名で明確）
-case edns_info do
-  %{extended_dns_error_info_code: code, extended_dns_error_extra_text: text} ->
-    handle_extended_error(code, text)
-  _ ->
-    :no_extended_error
-end
-
-# 未知オプション
-Enum.each(edns_info.unknown_options, fn {code, data} ->
-  IO.puts("Unknown option #{code}: #{inspect(data)}")
-end)
-```
-
-### EDNS情報の作成
+## Example Usage
 
 ```elixir
-edns_info = %{
-  payload_size: 1232,
-  ex_rcode: 0,
-  version: 0,
-  dnssec: 0,
-  z: 0,
-  
-  # ECS情報
-  ecs_family: 1,
-  ecs_subnet: {192, 168, 1, 0},
-  ecs_source_prefix: 24,
-  ecs_scope_prefix: 0,
-  
-  # Cookie情報
-  cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
-  cookie_server: nil,
-  
-  # NSID
-  nsid: "ns1.example.com",
-  
-  # 未知オプション
-  unknown_options: %{
-    123 => <<1, 2, 3, 4>>
-  }
-}
+# Direct access to common options
+packet.edns_info.ecs_family          # ECS family
+packet.edns_info.ecs_subnet          # ECS subnet  
+packet.edns_info.cookie_client       # Cookie client value
+packet.edns_info.nsid                # NSID value
+
+# Access to complex options
+packet.edns_info.extended_dns_error_info_code    # Extended DNS Error info code
+packet.edns_info.edns_tcp_keepalive_timeout      # TCP keepalive timeout
+
+# Unknown options
+packet.edns_info.unknown_options[123]            # Access unknown option 123
 ```
 
-## パフォーマンス影響
+## Backward Compatibility
 
-この命名規則とハイブリッド構造により、以下のパフォーマンス向上が実現されています：
+The flattened structure maintains full compatibility with standard EDNS processing:
 
-- **ECS アクセス**: 35.3% 高速化
-- **Cookie アクセス**: 69.0% 高速化
-- **未知オプション アクセス**: 32.9% 高速化
+- All RFC-defined options are supported
+- Unknown options are preserved exactly as received
+- Binary serialization maintains exact format
+- No information is lost during parse/create cycles
 
-## 将来の拡張
-
-新しいEDNSオプションを追加する際は、以下の基準に従ってください：
-
-1. **業界で標準略語がある場合**: 略語を使用（例：ECS）
-2. **新しいRFCオプションで複雑な場合**: 完全名を使用
-3. **単一フィールドで分かりやすい場合**: そのまま使用（例：nsid）
-
-### 新しいオプション追加手順
-
-1. `lib/dns.ex`に新しいオプションコードを追加
-2. `lib/dns_packet.ex`の`parse_opt_code/2`関数にパーサーを追加
-3. `extract_and_flatten_options/1`関数にフラット化ロジックを追加
-4. `convert_hybrid_to_nested_options/1`関数に逆変換ロジックを追加
-5. この命名規則に従ってフィールド名を決定
-6. テストを追加
-
-## 参考資料
+## References
 
 - [RFC 6891 - Extension Mechanisms for DNS (EDNS(0))](https://tools.ietf.org/html/rfc6891)
 - [RFC 7871 - Client Subnet in DNS Queries](https://tools.ietf.org/html/rfc7871)
 - [RFC 7873 - Domain Name System (DNS) Cookies](https://tools.ietf.org/html/rfc7873)
-- [DNS Option Codes - IANA Registry](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-11)
+- [IANA DNS EDNS0 Option Codes](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-11)
