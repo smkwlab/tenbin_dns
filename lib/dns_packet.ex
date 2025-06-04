@@ -22,7 +22,10 @@ defmodule DNSpacket do
     parse_rdata: 4,
     parse_question_fast: 4,
     parse_answer_fast: 4,
-    parse_answer_checkopt_fast: 6
+    parse_answer_checkopt_fast: 6,
+    # Fast paths for common DNS record types (70%+ of traffic)
+    parse_a_fast: 1,
+    parse_aaaa_fast: 1
   ]}
 
   # Compile-time optimization for maximum speed
@@ -835,10 +838,18 @@ defmodule DNSpacket do
     parse_name_acc(body, orig_body, ["." | [name | acc]])
   end
 
-  def parse_rdata(<<a1::8, a2::8, a3::8, a4::8>>, :a, :in, _) do
-    %{
-      addr: {a1, a2, a3, a4}
-    }
+  # Fast paths for A and AAAA records (70%+ of DNS traffic)
+  # Direct pattern matching with no function call overhead
+  def parse_a_fast(<<a::8, b::8, c::8, d::8>>), do: %{addr: {a, b, c, d}}
+  
+  def parse_aaaa_fast(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>) do
+    %{addr: {a1, a2, a3, a4, a5, a6, a7, a8}}
+  end
+
+  # Optimized parse_rdata using fast paths with fallback to original behavior
+  def parse_rdata(<<a::8, b::8, c::8, d::8>>, :a, :in, _), do: parse_a_fast(<<a, b, c, d>>)
+  def parse_rdata(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>, :aaaa, :in, _) do
+    parse_aaaa_fast(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>)
   end
 
   def parse_rdata(rdata, :ns, _, orig_body) do
@@ -911,11 +922,6 @@ defmodule DNSpacket do
     }
   end
 
-  def parse_rdata(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>, :aaaa, :in, _) do
-    %{
-      addr: {a1, a2, a3, a4, a5, a6, a7, a8},
-    }
-  end
 
   def parse_rdata(<<flag       :: unsigned-integer-size(8),
                     tag_length :: unsigned-integer-size(8),
