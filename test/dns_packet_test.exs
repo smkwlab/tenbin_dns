@@ -674,28 +674,36 @@ defmodule DNSpacketTest do
         version: 0,
         dnssec: 1,
         z: 0,
-        options: %{
-          edns_client_subnet: %{family: 1, client_subnet: {192, 168, 1, 0}, source_prefix: 24, scope_prefix: 0},
-          cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil},
-          nsid: "server1",
-          extended_dns_error: %{info_code: 18, extra_text: "Blocked"},
-          edns_tcp_keepalive: %{timeout: 300},
-          padding: %{length: 4},
-          dau: %{algorithms: [7, 8, 10]},
-          dhu: %{algorithms: [1, 2]},
-          n3u: %{algorithms: [1]},
-          edns_expire: %{expire: 3600},
-          chain: %{closest_encloser: "example.com"},
-          edns_key_tag: %{key_tags: [12_345, 54_321]},
-          edns_client_tag: %{tag: 1234},
-          edns_server_tag: %{tag: 5678},
-          report_channel: %{agent_domain: "agent.example.com"},
-          zoneversion: %{version: 1_234_567_890_123_456},
-          update_lease: %{lease: 7200},
-          llq: %{version: 1, llq_opcode: 1, error_code: 0, llq_id: 1_234_567_890_123_456, lease_life: 3600},
-          umbrella_ident: %{ident: 0x12345678},
-          deviceid: %{device_id: "device123"}
-        }
+        # Hybrid flat structure for EDNS options
+        ecs_family: 1,
+        ecs_subnet: {192, 168, 1, 0},
+        ecs_source_prefix: 24,
+        ecs_scope_prefix: 0,
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        cookie_server: nil,
+        nsid: "server1",
+        extended_dns_error_info_code: 18,
+        extended_dns_error_extra_text: "Blocked",
+        edns_tcp_keepalive_timeout: 300,
+        padding_length: 4,
+        dau_algorithms: [7, 8, 10],
+        dhu_algorithms: [1, 2],
+        n3u_algorithms: [1],
+        edns_expire_expire: 3600,
+        chain_closest_encloser: "example.com",
+        edns_key_tag_key_tags: [12_345, 54_321],
+        edns_client_tag_tag: 1234,
+        edns_server_tag_tag: 5678,
+        report_channel_agent_domain: "agent.example.com",
+        zoneversion_version: 1_234_567_890_123_456,
+        update_lease_lease: 7200,
+        llq_version: 1,
+        llq_llq_opcode: 1,
+        llq_error_code: 0,
+        llq_llq_id: 1_234_567_890_123_456,
+        llq_lease_life: 3600,
+        umbrella_ident_ident: 0x12345678,
+        deviceid_device_id: "device123"
       }
 
       # Convert structured format to legacy format for create_rr
@@ -820,7 +828,7 @@ defmodule DNSpacketTest do
       assert result.version == 0
       assert result.dnssec == 1
       assert result.z == 0
-      assert result.options == %{}
+      assert result.unknown_options == %{}
     end
 
     test "parses EDNS Client Subnet option with IPv4" do
@@ -839,10 +847,10 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_client_subnet.family == 1
-      assert result.options.edns_client_subnet.client_subnet == {192, 168, 1, 0}
-      assert result.options.edns_client_subnet.source_prefix == 24
-      assert result.options.edns_client_subnet.scope_prefix == 0
+      assert result.ecs_family == 1
+      assert result.ecs_subnet == {192, 168, 1, 0}
+      assert result.ecs_source_prefix == 24
+      assert result.ecs_scope_prefix == 0
     end
 
     test "parses EDNS Client Subnet option with IPv6" do
@@ -856,9 +864,9 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_client_subnet.family == 2
-      assert result.options.edns_client_subnet.client_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
-      assert result.options.edns_client_subnet.source_prefix == 48
+      assert result.ecs_family == 2
+      assert result.ecs_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
+      assert result.ecs_source_prefix == 48
     end
 
     test "parses cookie option - client only" do
@@ -872,8 +880,8 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.cookie.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
-      assert result.options.cookie.server == nil
+      assert result.cookie_client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+      assert result.cookie_server == nil
     end
 
     test "parses cookie option - client and server" do
@@ -891,8 +899,8 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.cookie.client == client_cookie
-      assert result.options.cookie.server == server_cookie
+      assert result.cookie_client == client_cookie
+      assert result.cookie_server == server_cookie
     end
 
     test "parses cookie option - invalid size" do
@@ -907,8 +915,8 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.cookie.client == <<1, 2, 3, 4>>
-      assert result.options.cookie.server == nil
+      assert result.cookie_client == <<1, 2, 3, 4>>
+      assert result.cookie_server == nil
     end
 
     test "parses cookie option - maximum size" do
@@ -927,8 +935,8 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.cookie.client == client_cookie
-      assert byte_size(result.options.cookie.server) == 32
+      assert result.cookie_client == client_cookie
+      assert byte_size(result.cookie_server) == 32
     end
 
     test "parses NSID option with ASCII text" do
@@ -943,7 +951,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.nsid == nsid_data
+      assert result.nsid == nsid_data
     end
 
     test "parses NSID option with binary data" do
@@ -958,7 +966,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.nsid == "fffefd"
+      assert result.nsid == "fffefd"
     end
 
     test "parses extended DNS error option" do
@@ -972,8 +980,8 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.extended_dns_error.info_code == 18
-      assert result.options.extended_dns_error.extra_text == "Blocked by policy"
+      assert result.extended_dns_error_info_code == 18
+      assert result.extended_dns_error_extra_text == "Blocked by policy"
     end
 
     test "parses TCP keepalive option with timeout" do
@@ -987,7 +995,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_tcp_keepalive.timeout == 300
+      assert result.edns_tcp_keepalive_timeout == 300
     end
 
     test "parses TCP keepalive option without timeout" do
@@ -1001,7 +1009,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_tcp_keepalive.timeout == nil
+      assert result.edns_tcp_keepalive_timeout == nil
     end
 
     test "parses TCP keepalive option with invalid data length" do
@@ -1016,8 +1024,8 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_tcp_keepalive.timeout == nil
-      assert result.options.edns_tcp_keepalive.raw_data == <<1, 2, 3>>
+      assert result.edns_tcp_keepalive_timeout == nil
+      assert result.edns_tcp_keepalive_raw_data == <<1, 2, 3>>
     end
 
     test "parses padding option" do
@@ -1032,7 +1040,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.padding.length == 8
+      assert result.padding_length == 8
     end
 
     test "handles unknown EDNS options" do
@@ -1046,7 +1054,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert length(result.options.unknown) == 2
+      assert map_size(result.unknown_options) == 2
     end
 
     test "parses multiple EDNS options together" do
@@ -1065,10 +1073,10 @@ defmodule DNSpacketTest do
 
       result = DNSpacket.parse_edns_info(additional)
       assert result.payload_size == 4096
-      assert result.options.edns_client_subnet.client_subnet == {10, 0, 0, 0}
-      assert result.options.cookie.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
-      assert result.options.nsid == "server1"
-      assert result.options.padding.length == 4
+      assert result.ecs_subnet == {10, 0, 0, 0}
+      assert result.cookie_client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+      assert result.nsid == "server1"
+      assert result.padding_length == 4
     end
   end
 
@@ -1084,7 +1092,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_client_subnet.client_subnet == {0, 0, 0, 0}
+      assert result.ecs_subnet == {0, 0, 0, 0}
     end
 
     test "handles IPv6 prefix length 0" do
@@ -1098,7 +1106,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_client_subnet.client_subnet == {0, 0, 0, 0, 0, 0, 0, 0}
+      assert result.ecs_subnet == {0, 0, 0, 0, 0, 0, 0, 0}
     end
 
     test "handles IPv4 with partial bytes" do
@@ -1113,7 +1121,7 @@ defmodule DNSpacketTest do
 
       result = DNSpacket.parse_edns_info(additional)
       # Should mask out bits beyond prefix length
-      assert result.options.edns_client_subnet.client_subnet == {203, 128, 0, 0}
+      assert result.ecs_subnet == {203, 128, 0, 0}
     end
 
     test "handles IPv6 with partial bytes and masking" do
@@ -1129,9 +1137,9 @@ defmodule DNSpacketTest do
 
       result = DNSpacket.parse_edns_info(additional)
       # Should mask the last 4 bits of the 5th byte
-      assert elem(result.options.edns_client_subnet.client_subnet, 0) == 0x2001
-      assert elem(result.options.edns_client_subnet.client_subnet, 1) == 0x0db8
-      assert elem(result.options.edns_client_subnet.client_subnet, 2) == 0xF000  # Masked
+      assert elem(result.ecs_subnet, 0) == 0x2001
+      assert elem(result.ecs_subnet, 1) == 0x0db8
+      assert elem(result.ecs_subnet, 2) == 0xF000  # Masked
     end
 
     test "handles IPv4 address that's too long" do
@@ -1147,7 +1155,7 @@ defmodule DNSpacketTest do
 
       result = DNSpacket.parse_edns_info(additional)
       # Should truncate to 4 bytes
-      assert result.options.edns_client_subnet.client_subnet == {192, 168, 1, 1}
+      assert result.ecs_subnet == {192, 168, 1, 1}
     end
 
     test "handles IPv6 address that's too long" do
@@ -1163,8 +1171,8 @@ defmodule DNSpacketTest do
 
       result = DNSpacket.parse_edns_info(additional)
       # Should truncate to 16 bytes and parse as IPv6
-      assert elem(result.options.edns_client_subnet.client_subnet, 0) == 0x2001
-      assert elem(result.options.edns_client_subnet.client_subnet, 1) == 0x0db8
+      assert elem(result.ecs_subnet, 0) == 0x2001
+      assert elem(result.ecs_subnet, 1) == 0x0db8
     end
 
     test "handles unknown address family" do
@@ -1178,7 +1186,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_client_subnet.client_subnet == <<1, 2, 3, 4>>
+      assert result.ecs_subnet == <<1, 2, 3, 4>>
     end
 
     test "handles negative prefix length" do
@@ -1194,7 +1202,7 @@ defmodule DNSpacketTest do
 
       result = DNSpacket.parse_edns_info(additional)
       # Should zero out the address
-      assert result.options.edns_client_subnet.client_subnet == {0, 0, 0, 0}
+      assert result.ecs_subnet == {0, 0, 0, 0}
     end
 
     test "handles prefix length equal to max bits" do
@@ -1209,7 +1217,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_client_subnet.client_subnet == {192, 168, 1, 1}
+      assert result.ecs_subnet == {192, 168, 1, 1}
     end
 
     test "handles unknown tuple size in prefix mask" do
@@ -1226,7 +1234,7 @@ defmodule DNSpacketTest do
 
       result = DNSpacket.parse_edns_info(additional)
       # Unknown family returns the raw binary
-      assert result.options.edns_client_subnet.client_subnet == <<192, 168>>
+      assert result.ecs_subnet == <<192, 168>>
     end
   end
 
@@ -1272,7 +1280,7 @@ defmodule DNSpacketTest do
       assert parsed.edns_info != nil
       assert parsed.edns_info.payload_size == 1232
       assert parsed.edns_info.dnssec == 1
-      assert parsed.edns_info.options == %{}
+      assert parsed.edns_info.unknown_options == %{}
     end
 
     test "parses packet without OPT record and sets edns_info to nil" do
@@ -1312,14 +1320,10 @@ defmodule DNSpacketTest do
         version: 0,
         dnssec: 1,
         z: 0,
-        options: %{
-          edns_client_subnet: %{
-            family: 1,
-            client_subnet: {192, 168, 1, 0},
-            source_prefix: 24,
-            scope_prefix: 0
-          }
-        }
+        ecs_family: 1,
+        ecs_subnet: {192, 168, 1, 0},
+        ecs_source_prefix: 24,
+        ecs_scope_prefix: 0
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -1341,11 +1345,13 @@ defmodule DNSpacketTest do
     test "creates OPT record with multiple options" do
       edns_info = %{
         payload_size: 1232,
-        options: %{
-          edns_client_subnet: %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 8, scope_prefix: 0},
-          cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil},
-          nsid: "server1"
-        }
+        ecs_family: 1,
+        ecs_subnet: {10, 0, 0, 0},
+        ecs_source_prefix: 8,
+        ecs_scope_prefix: 0,
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        cookie_server: nil,
+        nsid: "server1"
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -1382,14 +1388,10 @@ defmodule DNSpacketTest do
         edns_info: %{
           payload_size: 4096,
           dnssec: 1,
-          options: %{
-            edns_client_subnet: %{
-              family: 1,
-              client_subnet: {203, 0, 113, 0},
-              source_prefix: 24,
-              scope_prefix: 0
-            }
-          }
+          ecs_family: 1,
+          ecs_subnet: {203, 0, 113, 0},
+          ecs_source_prefix: 24,
+          ecs_scope_prefix: 0
         }
       }
 
@@ -1408,9 +1410,9 @@ defmodule DNSpacketTest do
       assert parsed_packet.edns_info != nil
       assert parsed_packet.edns_info.payload_size == 4096
       assert parsed_packet.edns_info.dnssec == 1
-      assert parsed_packet.edns_info.options.edns_client_subnet.family == 1
-      assert parsed_packet.edns_info.options.edns_client_subnet.client_subnet == {203, 0, 113, 0}
-      assert parsed_packet.edns_info.options.edns_client_subnet.source_prefix == 24
+      assert parsed_packet.edns_info.ecs_family == 1
+      assert parsed_packet.edns_info.ecs_subnet == {203, 0, 113, 0}
+      assert parsed_packet.edns_info.ecs_source_prefix == 24
     end
 
     test "roundtrip for packet with multiple EDNS options" do
@@ -1424,19 +1426,13 @@ defmodule DNSpacketTest do
           ex_rcode: 0,
           version: 0,
           dnssec: 0,
-          options: %{
-            edns_client_subnet: %{
-              family: 2,
-              client_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0},
-              source_prefix: 48,
-              scope_prefix: 0
-            },
-            cookie: %{
-              client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
-              server: <<9, 10, 11, 12, 13, 14, 15, 16>>
-            },
-            nsid: "ns1.example.com"
-          }
+          ecs_family: 2,
+          ecs_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0},
+          ecs_source_prefix: 48,
+          ecs_scope_prefix: 0,
+          cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+          cookie_server: <<9, 10, 11, 12, 13, 14, 15, 16>>,
+          nsid: "ns1.example.com"
         }
       }
 
@@ -1445,14 +1441,14 @@ defmodule DNSpacketTest do
 
       # Verify EDNS options are preserved
       edns = parsed_packet.edns_info
-      assert edns.options.edns_client_subnet.family == 2
-      assert edns.options.edns_client_subnet.client_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
-      assert edns.options.edns_client_subnet.source_prefix == 48
+      assert edns.ecs_family == 2
+      assert edns.ecs_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
+      assert edns.ecs_source_prefix == 48
 
-      assert edns.options.cookie.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
-      assert edns.options.cookie.server == <<9, 10, 11, 12, 13, 14, 15, 16>>
+      assert edns.cookie_client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+      assert edns.cookie_server == <<9, 10, 11, 12, 13, 14, 15, 16>>
 
-      assert edns.options.nsid == "ns1.example.com"
+      assert edns.nsid == "ns1.example.com"
     end
 
     test "packet without edns_info creates no OPT record" do
@@ -1485,9 +1481,7 @@ defmodule DNSpacketTest do
         edns_info: %{
           payload_size: 4096,
           dnssec: 1,
-          options: %{
-            nsid: "new-server"
-          }
+          nsid: "new-server"
         }
       }
 
@@ -1500,7 +1494,7 @@ defmodule DNSpacketTest do
 
       assert parsed_packet.edns_info.payload_size == 4096
       assert parsed_packet.edns_info.dnssec == 1
-      assert parsed_packet.edns_info.options.nsid == "new-server"
+      assert parsed_packet.edns_info.nsid == "new-server"
 
       # Non-OPT records should be preserved
       non_opt_records = Enum.reject(parsed_packet.additional, &(&1.type == :opt))
@@ -1513,9 +1507,10 @@ defmodule DNSpacketTest do
     test "IPv4 address with various prefix lengths" do
       # Test /8 prefix (1 byte)
       edns_info = %{
-        options: %{
-          edns_client_subnet: %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 8, scope_prefix: 0}
-        }
+        ecs_family: 1,
+        ecs_subnet: {10, 0, 0, 0},
+        ecs_source_prefix: 8,
+        ecs_scope_prefix: 0
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -1525,9 +1520,10 @@ defmodule DNSpacketTest do
 
       # Test /16 prefix (2 bytes)
       edns_info2 = %{
-        options: %{
-          edns_client_subnet: %{family: 1, client_subnet: {192, 168, 0, 0}, source_prefix: 16, scope_prefix: 0}
-        }
+        ecs_family: 1,
+        ecs_subnet: {192, 168, 0, 0},
+        ecs_source_prefix: 16,
+        ecs_scope_prefix: 0
       }
 
       opt_record2 = DNSpacket.create_edns_info_record(edns_info2)
@@ -1537,9 +1533,10 @@ defmodule DNSpacketTest do
 
       # Test /24 prefix (3 bytes)
       edns_info3 = %{
-        options: %{
-          edns_client_subnet: %{family: 1, client_subnet: {203, 0, 113, 0}, source_prefix: 24, scope_prefix: 0}
-        }
+        ecs_family: 1,
+        ecs_subnet: {203, 0, 113, 0},
+        ecs_source_prefix: 24,
+        ecs_scope_prefix: 0
       }
 
       opt_record3 = DNSpacket.create_edns_info_record(edns_info3)
@@ -1551,9 +1548,10 @@ defmodule DNSpacketTest do
     test "IPv6 address with various prefix lengths" do
       # Test /32 prefix (4 bytes)
       edns_info = %{
-        options: %{
-          edns_client_subnet: %{family: 2, client_subnet: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 0}, source_prefix: 32, scope_prefix: 0}
-        }
+        ecs_family: 2,
+        ecs_subnet: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 0},
+        ecs_source_prefix: 32,
+        ecs_scope_prefix: 0
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -1563,9 +1561,10 @@ defmodule DNSpacketTest do
 
       # Test /48 prefix (6 bytes)
       edns_info2 = %{
-        options: %{
-          edns_client_subnet: %{family: 2, client_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}, source_prefix: 48, scope_prefix: 0}
-        }
+        ecs_family: 2,
+        ecs_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0},
+        ecs_source_prefix: 48,
+        ecs_scope_prefix: 0
       }
 
       opt_record2 = DNSpacket.create_edns_info_record(edns_info2)
@@ -1577,9 +1576,10 @@ defmodule DNSpacketTest do
     test "unknown address family with binary address" do
       # Test unknown family (not 1 or 2)
       edns_info = %{
-        options: %{
-          edns_client_subnet: %{family: 99, client_subnet: <<1, 2, 3, 4>>, source_prefix: 32, scope_prefix: 0}
-        }
+        ecs_family: 99,
+        ecs_subnet: <<1, 2, 3, 4>>,
+        ecs_source_prefix: 32,
+        ecs_scope_prefix: 0
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -1601,7 +1601,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.dau.algorithms == [7, 8, 10]
+      assert result.dau_algorithms == [7, 8, 10]
     end
 
     test "parses DHU option" do
@@ -1615,7 +1615,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.dhu.algorithms == [1, 2]
+      assert result.dhu_algorithms == [1, 2]
     end
 
     test "parses N3U option" do
@@ -1629,7 +1629,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.n3u.algorithms == [1]
+      assert result.n3u_algorithms == [1]
     end
 
     test "parses EDNS expire option with value" do
@@ -1643,7 +1643,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_expire.expire == 3600
+      assert result.edns_expire_expire == 3600
     end
 
     test "parses EDNS expire option without value" do
@@ -1657,7 +1657,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_expire.expire == nil
+      assert result.edns_expire_expire == nil
     end
 
     test "parses chain option" do
@@ -1671,7 +1671,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.chain.closest_encloser == "example.com"
+      assert result.chain_closest_encloser == "example.com"
     end
 
     test "parses EDNS key tag option" do
@@ -1685,7 +1685,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_key_tag.key_tags == [12_345, 54_321]
+      assert result.edns_key_tag_key_tags == [12_345, 54_321]
     end
 
     test "parses EDNS client tag option" do
@@ -1699,7 +1699,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_client_tag.tag == 1234
+      assert result.edns_client_tag_tag == 1234
     end
 
     test "parses EDNS server tag option" do
@@ -1713,7 +1713,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.edns_server_tag.tag == 5678
+      assert result.edns_server_tag_tag == 5678
     end
 
     test "parses report channel option" do
@@ -1727,7 +1727,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.report_channel.agent_domain == "agent.example.com"
+      assert result.report_channel_agent_domain == "agent.example.com"
     end
 
     test "parses zoneversion option" do
@@ -1741,7 +1741,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.zoneversion.version == 1_234_567_890_123_456
+      assert result.zoneversion_version == 1_234_567_890_123_456
     end
 
     test "parses update lease option" do
@@ -1755,7 +1755,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.update_lease.lease == 7200
+      assert result.update_lease_lease == 7200
     end
 
     test "parses LLQ option" do
@@ -1769,11 +1769,11 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.llq.version == 1
-      assert result.options.llq.llq_opcode == 1
-      assert result.options.llq.error_code == 0
-      assert result.options.llq.llq_id == 1_234_567_890_123_456
-      assert result.options.llq.lease_life == 3600
+      assert result.llq_version == 1
+      assert result.llq_llq_opcode == 1
+      assert result.llq_error_code == 0
+      assert result.llq_llq_id == 1_234_567_890_123_456
+      assert result.llq_lease_life == 3600
     end
 
     test "parses Umbrella ident option" do
@@ -1787,7 +1787,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.umbrella_ident.ident == 0x12345678
+      assert result.umbrella_ident_ident == 0x12345678
     end
 
     test "parses DeviceID option" do
@@ -1801,7 +1801,7 @@ defmodule DNSpacketTest do
       ]
 
       result = DNSpacket.parse_edns_info(additional)
-      assert result.options.deviceid.device_id == "device123"
+      assert result.deviceid_device_id == "device123"
     end
   end
 
@@ -1809,9 +1809,7 @@ defmodule DNSpacketTest do
     test "creates OPT record with DAU option" do
       edns_info = %{
         payload_size: 1232,
-        options: %{
-          dau: %{algorithms: [7, 8, 10]}
-        }
+        dau_algorithms: [7, 8, 10]
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -1825,9 +1823,7 @@ defmodule DNSpacketTest do
 
     test "creates OPT record with EDNS expire option" do
       edns_info = %{
-        options: %{
-          edns_expire: %{expire: 3600}
-        }
+        edns_expire_expire: 3600
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -1839,9 +1835,7 @@ defmodule DNSpacketTest do
 
     test "creates OPT record with key tag option" do
       edns_info = %{
-        options: %{
-          edns_key_tag: %{key_tags: [12_345, 54_321]}
-        }
+        edns_key_tag_key_tags: [12_345, 54_321]
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -1860,12 +1854,10 @@ defmodule DNSpacketTest do
         edns_info: %{
           payload_size: 4096,
           dnssec: 1,
-          options: %{
-            dau: %{algorithms: [7, 8]},
-            edns_expire: %{expire: 3600},
-            edns_key_tag: %{key_tags: [12_345]},
-            zoneversion: %{version: 123_456_789}
-          }
+          dau_algorithms: [7, 8],
+          edns_expire_expire: 3600,
+          edns_key_tag_key_tags: [12_345],
+          zoneversion_version: 123_456_789
         }
       }
 
@@ -1874,18 +1866,17 @@ defmodule DNSpacketTest do
 
       # Verify EDNS options are preserved
       edns = parsed_packet.edns_info
-      assert edns.options.dau.algorithms == [7, 8]
-      assert edns.options.edns_expire.expire == 3600
-      assert edns.options.edns_key_tag.key_tags == [12_345]
-      assert edns.options.zoneversion.version == 123_456_789
+      assert edns.dau_algorithms == [7, 8]
+      assert edns.edns_expire_expire == 3600
+      assert edns.edns_key_tag_key_tags == [12_345]
+      assert edns.zoneversion_version == 123_456_789
     end
 
     test "create_cookie_option coverage" do
       # Test cookie with client only
       edns_info1 = %{
-        options: %{
-          cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil}
-        }
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        cookie_server: nil
       }
 
       opt_record1 = DNSpacket.create_edns_info_record(edns_info1)
@@ -1897,9 +1888,8 @@ defmodule DNSpacketTest do
 
       # Test cookie with client and server
       edns_info2 = %{
-        options: %{
-          cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: <<9, 10, 11, 12, 13, 14, 15, 16>>}
-        }
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        cookie_server: <<9, 10, 11, 12, 13, 14, 15, 16>>
       }
 
       opt_record2 = DNSpacket.create_edns_info_record(edns_info2)
@@ -2076,31 +2066,39 @@ defmodule DNSpacketTest do
     test "converts all option types to rdata" do
       edns_info = %{
         payload_size: 4096,
-        options: %{
-          edns_client_subnet: %{family: 1, client_subnet: {192, 168, 1, 0}, source_prefix: 24, scope_prefix: 0},
-          cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: <<9, 10, 11, 12, 13, 14, 15, 16>>},
-          nsid: "server.example.com",
-          extended_dns_error: %{info_code: 18, extra_text: "Blocked by policy"},
-          edns_tcp_keepalive: %{timeout: 300},
-          padding: %{length: 8},
-          dau: %{algorithms: [7, 8, 10]},
-          dhu: %{algorithms: [1, 2]},
-          n3u: %{algorithms: [1]},
-          edns_expire: %{expire: 3600},
-          chain: %{closest_encloser: "closest.example.com"},
-          edns_key_tag: %{key_tags: [12_345, 54_321]},
-          edns_client_tag: %{tag: 1234},
-          edns_server_tag: %{tag: 5678},
-          report_channel: %{agent_domain: "report.example.com"},
-          zoneversion: %{version: 1_234_567_890_123_456},
-          update_lease: %{lease: 7200},
-          llq: %{version: 1, llq_opcode: 1, error_code: 0, llq_id: 9_876_543_210, lease_life: 3600},
-          umbrella_ident: %{ident: 0x12345678},
-          deviceid: %{device_id: "test-device-001"},
-          unknown: [
-            %{code: 65_000, data: <<1, 2, 3>>},
-            %{code: 65_001, data: <<4, 5, 6, 7>>}
-          ]
+        # Hybrid flat structure for EDNS options
+        ecs_family: 1,
+        ecs_subnet: {192, 168, 1, 0},
+        ecs_source_prefix: 24,
+        ecs_scope_prefix: 0,
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        cookie_server: <<9, 10, 11, 12, 13, 14, 15, 16>>,
+        nsid: "server.example.com",
+        extended_dns_error_info_code: 18,
+        extended_dns_error_extra_text: "Blocked by policy",
+        edns_tcp_keepalive_timeout: 300,
+        padding_length: 8,
+        dau_algorithms: [7, 8, 10],
+        dhu_algorithms: [1, 2],
+        n3u_algorithms: [1],
+        edns_expire_expire: 3600,
+        chain_closest_encloser: "closest.example.com",
+        edns_key_tag_key_tags: [12_345, 54_321],
+        edns_client_tag_tag: 1234,
+        edns_server_tag_tag: 5678,
+        report_channel_agent_domain: "report.example.com",
+        zoneversion_version: 1_234_567_890_123_456,
+        update_lease_lease: 7200,
+        llq_version: 1,
+        llq_llq_opcode: 1,
+        llq_error_code: 0,
+        llq_llq_id: 9_876_543_210,
+        llq_lease_life: 3600,
+        umbrella_ident_ident: 0x12345678,
+        deviceid_device_id: "test-device-001",
+        unknown_options: %{
+          65_000 => <<1, 2, 3>>,
+          65_001 => <<4, 5, 6, 7>>
         }
       }
 
@@ -2194,9 +2192,7 @@ defmodule DNSpacketTest do
 
     test "converts tcp_keepalive with nil timeout" do
       edns_info = %{
-        options: %{
-          edns_tcp_keepalive: %{timeout: nil}
-        }
+        edns_tcp_keepalive_timeout: nil
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -2209,9 +2205,8 @@ defmodule DNSpacketTest do
 
     test "converts cookie with server nil" do
       edns_info = %{
-        options: %{
-          cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil}
-        }
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        cookie_server: nil
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -2225,9 +2220,7 @@ defmodule DNSpacketTest do
 
     test "handles invalid option gracefully" do
       edns_info = %{
-        options: %{
-          invalid_option: %{some: "data"}
-        }
+        invalid_option_some: "data"
       }
 
       opt_record = DNSpacket.create_edns_info_record(edns_info)
@@ -2239,9 +2232,10 @@ defmodule DNSpacketTest do
     test "converts ECS with different address families" do
       # Test IPv4
       edns_info_v4 = %{
-        options: %{
-          edns_client_subnet: %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 8, scope_prefix: 0}
-        }
+        ecs_family: 1,
+        ecs_subnet: {10, 0, 0, 0},
+        ecs_source_prefix: 8,
+        ecs_scope_prefix: 0
       }
 
       opt_record_v4 = DNSpacket.create_edns_info_record(edns_info_v4)
@@ -2251,9 +2245,10 @@ defmodule DNSpacketTest do
 
       # Test IPv6
       edns_info_v6 = %{
-        options: %{
-          edns_client_subnet: %{family: 2, client_subnet: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 1}, source_prefix: 64, scope_prefix: 0}
-        }
+        ecs_family: 2,
+        ecs_subnet: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 1},
+        ecs_source_prefix: 64,
+        ecs_scope_prefix: 0
       }
 
       opt_record_v6 = DNSpacket.create_edns_info_record(edns_info_v6)
