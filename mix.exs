@@ -1,7 +1,7 @@
 defmodule Tenbin.DNS.MixProject do
   use Mix.Project
 
-  @version "0.6.0"
+  @version "0.6.1"
 
   def project do
     [
@@ -13,7 +13,7 @@ defmodule Tenbin.DNS.MixProject do
       
       # Documentation
       name: "Tenbin.DNS",
-      description: "High-performance DNS packet parsing and creation library for Elixir",
+      description: "DNS packet parsing and creation library for Elixir",
       source_url: "https://github.com/smkwlab/tenbin_dns",
       homepage_url: "https://github.com/smkwlab/tenbin_dns",
       docs: docs(),
@@ -65,7 +65,7 @@ defmodule Tenbin.DNS.MixProject do
   # Package configuration for Hex
   defp package do
     [
-      description: "High-performance DNS packet parsing and creation library with EDNS hybrid structure",
+      description: "DNS packet parsing and creation library with EDNS hybrid structure",
       files: ~w(lib .formatter.exs mix.exs README.md LICENSE docs/EDNS_NAMING_CONVENTION.md),
       licenses: ["MIT"],
       links: %{
