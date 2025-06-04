@@ -46,7 +46,7 @@ TenbinDns is an Elixir library for DNS packet parsing and creation. The project 
 
 **Binary Protocol Handling**:
 - Heavy use of binary pattern matching for packet parsing
-- Custom functions for domain name compression/decompression
+- Custom functions for domain name decompression (parsing compressed names)
 - RDATA parsing specialized per DNS record type
 
 **Constant Management**:
@@ -70,4 +70,4 @@ TenbinDns is an Elixir library for DNS packet parsing and creation. The project 
 - Uses ExUnit for testing with extensive binary data validation
 - Code analysis tools (Credo, Dialyxir) are configured and should be run before commits
 - Binary data handling requires careful attention to byte alignment and endianness
-- DNS name compression/decompression uses pointer following in binary data
+- DNS name decompression uses pointer following in binary data for parsing compressed names

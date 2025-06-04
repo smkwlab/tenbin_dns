@@ -4,9 +4,9 @@ defmodule DNSpacket do
   DNS packet parsing and creation module.
 
   This module provides functionality for creating and parsing DNS packets
-  according to RFC 1035 and related specifications. It supports standard
-  DNS records (A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA) and EDNS0
-  extensions including OPT records.
+  according to RFC 1035 and related specifications. It supports 19+ DNS
+  record types including A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA, SRV,
+  NAPTR, DNAME, DNSKEY, DS, RRSIG, NSEC, SVCB, HTTPS and EDNS0 extensions.
 
   The module is optimized with compile-time optimizations,
   aggressive function inlining, and efficient binary pattern matching.

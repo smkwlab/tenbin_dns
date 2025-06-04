@@ -14,8 +14,8 @@ defmodule Tenbin.DNS do
 
   - **Optimized**: Binary pattern matching with compile-time optimizations
   - **EDNS Hybrid Structure**: 35-69% faster access to common EDNS options
-  - **Comprehensive DNS Support**: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA records
-  - **EDNS0 Extensions**: Full support for EDNS options with industry-standard naming
+  - **DNS Support**: 19+ record types including A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA, SRV, NAPTR, DNAME, DNSKEY, DS, RRSIG, NSEC, SVCB, HTTPS
+  - **EDNS0 Extensions**: Support for EDNS options with industry-standard naming
   - **Unknown Option Handling**: Graceful handling of unknown DNS types and EDNS options
 
   ## Quick Start
@@ -30,7 +30,7 @@ defmodule Tenbin.DNS do
         nsid = packet.edns_info.nsid
       end
 
-      # Create a DNS packet
+      # Create a DNS packet with A record
       packet = %DNSpacket{
         id: 12345,
         qr: 1,
@@ -40,6 +40,25 @@ defmodule Tenbin.DNS do
       }
 
       binary = DNSpacket.create(packet)
+
+      # Create HTTPS record with Service Parameters
+      https_packet = %DNSpacket{
+        id: 12346,
+        qr: 1,
+        question: [%{qname: "example.com", qtype: :https, qclass: :in}],
+        answer: [%{name: "example.com", type: :https, class: :in, ttl: 300,
+                   rdata: %{priority: 1, target: ".", 
+                           svc_params: %{alpn: ["h3", "h2"], port: 443}}}]
+      }
+
+      # Create SRV record
+      srv_packet = %DNSpacket{
+        id: 12347,
+        qr: 1,
+        question: [%{qname: "_sip._tcp.example.com", qtype: :srv, qclass: :in}],
+        answer: [%{name: "_sip._tcp.example.com", type: :srv, class: :in, ttl: 300,
+                   rdata: %{priority: 10, weight: 5, port: 5060, target: "sip.example.com"}}]
+      }
 
   ## Core Modules
 
