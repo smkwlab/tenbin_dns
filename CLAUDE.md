@@ -35,8 +35,9 @@ TenbinDns is an Elixir library for DNS packet parsing and creation. The project 
 - Main packet handling module with struct definition for DNS packets
 - Binary protocol implementation for DNS packet creation and parsing
 - Supports standard DNS records (A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA)
-- EDNS0 support including OPT record handling
+- EDNS0 support with hybrid structure for optimal performance and ease of use
 - Uses Elixir binary pattern matching extensively for protocol implementation
+- EDNS naming convention documented in `docs/EDNS_NAMING_CONVENTION.md`
 
 **TenbinDns** (`lib/tenbin_dns.ex`):
 - Main module (currently minimal with placeholder functionality)
@@ -52,6 +53,13 @@ TenbinDns is an Elixir library for DNS packet parsing and creation. The project 
 - Centralized constant definitions in DNS module
 - Compile-time map generation for efficient lookups
 - Bidirectional mapping between codes and atoms
+
+**EDNS Hybrid Structure**:
+- Flattened common options for direct access (e.g., `ecs_family`, `cookie_client`)
+- Unknown options preserved in `unknown_options` map
+- Industry-standard naming: ECS, NSID, DAU/DHU/N3U for common options
+- Full names for complex options: `extended_dns_error_*`, `edns_tcp_keepalive_*`
+- Performance improvements: 35-69% faster access over nested structures
 
 **Error Handling**:
 - Functions return structured data rather than raising exceptions
