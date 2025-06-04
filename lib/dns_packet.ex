@@ -925,6 +925,36 @@ defmodule DNSpacket do
   end
 
   @doc false
+  def create_rdata(rdata, :srv, _) do
+    <<rdata.priority::16, rdata.weight::16, rdata.port::16>> <> create_domain_name(rdata.target)
+  end
+
+  @doc false
+  def create_rdata(rdata, :naptr, _) do
+    <<rdata.order::16, rdata.preference::16, 
+      byte_size(rdata.flags)::8, rdata.flags::binary,
+      byte_size(rdata.services)::8, rdata.services::binary,
+      byte_size(rdata.regexp)::8, rdata.regexp::binary>> <> 
+    create_domain_name(rdata.replacement)
+  end
+
+  @doc false
+  def create_rdata(rdata, :dname, _) do
+    create_domain_name(rdata.target)
+  end
+
+  @doc false
+  def create_rdata(rdata, :dnskey, _) do
+    <<rdata.flags::16, rdata.protocol::8, rdata.algorithm::8, rdata.public_key::binary>>
+  end
+
+  @doc false
+  def create_rdata(rdata, type, _) when type in [:svcb, :https] do
+    # Basic SVCB/HTTPS support - priority and target name only
+    <<rdata.priority::16>> <> create_domain_name(rdata.target)
+  end
+
+  @doc false
   def create_rdata(rdata, _, _) do
     # Fallback for unknown types
     rdata
@@ -1255,6 +1285,73 @@ defmodule DNSpacket do
       flag: flag,
       tag: tag,
       value: value,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<priority :: unsigned-integer-size(16),
+                    weight   :: unsigned-integer-size(16),
+                    port     :: unsigned-integer-size(16),
+                    tmp_body :: binary>>, :srv, _, orig_body) do
+    {_, _, target} = parse_name(tmp_body, orig_body, "")
+    %{
+      priority: priority,
+      weight: weight,
+      port: port,
+      target: target,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<order      :: unsigned-integer-size(16),
+                    preference :: unsigned-integer-size(16),
+                    flags_len  :: unsigned-integer-size(8),
+                    flags      :: binary-size(flags_len),
+                    services_len :: unsigned-integer-size(8),
+                    services   :: binary-size(services_len),
+                    regexp_len :: unsigned-integer-size(8),
+                    regexp     :: binary-size(regexp_len),
+                    tmp_body   :: binary>>, :naptr, _, orig_body) do
+    {_, _, replacement} = parse_name(tmp_body, orig_body, "")
+    %{
+      order: order,
+      preference: preference,
+      flags: flags,
+      services: services,
+      regexp: regexp,
+      replacement: replacement,
+    }
+  end
+
+  @doc false
+  def parse_rdata(rdata, :dname, _, orig_body) do
+    {_, _, target} = parse_name(rdata, orig_body, "")
+    %{
+      target: target,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<flags     :: unsigned-integer-size(16),
+                    protocol  :: unsigned-integer-size(8),
+                    algorithm :: unsigned-integer-size(8),
+                    public_key :: binary>>, :dnskey, _, _) do
+    %{
+      flags: flags,
+      protocol: protocol,
+      algorithm: algorithm,
+      public_key: public_key,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<priority :: unsigned-integer-size(16),
+                    tmp_body :: binary>>, type, _, orig_body) when type in [:svcb, :https] do
+    # Basic SVCB/HTTPS support - priority and target name only
+    {_, _, target} = parse_name(tmp_body, orig_body, "")
+    %{
+      priority: priority,
+      target: target,
     }
   end
 

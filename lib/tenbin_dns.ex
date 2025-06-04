@@ -1,4 +1,7 @@
 defmodule Tenbin.DNS do
+  @external_resource "mix.exs"
+  @version Mix.Project.config()[:version]
+
   @moduledoc """
   DNS packet parsing and creation library for Elixir.
 
@@ -54,10 +57,10 @@ defmodule Tenbin.DNS do
   ## Examples
 
       iex> Tenbin.DNS.version()
-      "0.6.0"
+      #{inspect(@version)}
 
   """
   def version do
-    to_string(Application.spec(:tenbin_dns, :vsn))
+    @version
   end
 end
