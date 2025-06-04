@@ -17,7 +17,6 @@ defmodule DNSpacket do
   @compile {:inline, [
     create_character_string: 1,
     add_rdlength: 1,
-    concat_binary_list: 1,
     parse_name: 3,
     parse_name_acc: 3,
     parse_rdata: 4,
@@ -72,7 +71,7 @@ defmodule DNSpacket do
                length(packet.authority)      ::16,
                length(additional_with_edns)  ::16>>
 
-    :erlang.iolist_to_binary([
+    IO.iodata_to_binary([
       header,
       create_question(packet.question),
       create_answer(packet.answer),
@@ -94,12 +93,11 @@ defmodule DNSpacket do
     [opt_record | non_opt_records]
   end
 
-  def concat_binary_list(list), do: :erlang.iolist_to_binary(list)
 
   def create_question(question) do
     question
     |> Enum.map(&create_question_item(&1))
-    |> concat_binary_list
+    |> IO.iodata_to_binary()
   end
 
   @spec create_question_item(%{
@@ -114,7 +112,7 @@ defmodule DNSpacket do
   def create_answer(answer) do
     answer
     |> Enum.map(&create_rr(&1))
-    |> concat_binary_list
+    |> IO.iodata_to_binary()
   end
 
   # EDNS0
@@ -124,7 +122,7 @@ defmodule DNSpacket do
       options when is_list(options) ->
         options
         |> Enum.map(&create_option_binary/1)
-        |> concat_binary_list
+        |> IO.iodata_to_binary()
       _ -> <<>>
     end
 
@@ -262,7 +260,7 @@ defmodule DNSpacket do
   def create_edns_options(%{} = options) do
     options
     |> Enum.flat_map(&create_edns_option/1)
-    |> concat_binary_list
+    |> IO.iodata_to_binary()
   end
 
   def create_edns_options(_), do: <<>>
@@ -678,11 +676,13 @@ defmodule DNSpacket do
   defp add_rdlength(rdata), do: <<byte_size(rdata)::16>> <> rdata
 
   def create_domain_name(name) do
+    # Optimization: use IO.iodata_to_binary for better performance
     name
     |> String.split(".")
     |> Enum.map(&create_character_string/1)
-    |> concat_binary_list
+    |> IO.iodata_to_binary()
   end
+
 
   def create_character_string(txt), do: <<byte_size(txt)::8, txt::binary>>
 
@@ -822,13 +822,13 @@ defmodule DNSpacket do
   end
 
   defp parse_name_acc(<<0::8, body::binary>>, orig_body, acc) do
-    {body, orig_body, :erlang.iolist_to_binary(Enum.reverse(acc))}
+    {body, orig_body, IO.iodata_to_binary(Enum.reverse(acc))}
   end
 
   defp parse_name_acc(<<0b11::2, offset::14, body::binary>>, orig_body, acc) do
     <<_::binary-size(offset), tmp_body::binary>> = orig_body
     {_, _, name} = parse_name_acc(tmp_body, orig_body, [])
-    {body, orig_body, :erlang.iolist_to_binary(Enum.reverse([name | acc]))}
+    {body, orig_body, IO.iodata_to_binary(Enum.reverse([name | acc]))}
   end
 
   defp parse_name_acc(<<length::8, name::binary-size(length), body::binary>>, orig_body, acc) do
