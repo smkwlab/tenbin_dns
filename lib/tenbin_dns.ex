@@ -1,6 +1,6 @@
 defmodule Tenbin.DNS do
   @moduledoc """
-  High-performance DNS packet parsing and creation library for Elixir.
+  DNS packet parsing and creation library for Elixir.
 
   Tenbin.DNS provides fast and reliable DNS protocol operations with support for
   standard DNS records and EDNS0 extensions. It features a revolutionary hybrid
@@ -9,7 +9,7 @@ defmodule Tenbin.DNS do
 
   ## Features
 
-  - **High Performance**: Optimized binary pattern matching with compile-time optimizations
+  - **Optimized**: Binary pattern matching with compile-time optimizations
   - **EDNS Hybrid Structure**: 35-69% faster access to common EDNS options
   - **Comprehensive DNS Support**: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA records
   - **EDNS0 Extensions**: Full support for EDNS options with industry-standard naming
@@ -58,6 +58,6 @@ defmodule Tenbin.DNS do
 
   """
   def version do
-    Application.spec(:tenbin_dns, :vsn) |> to_string()
+    to_string(Application.spec(:tenbin_dns, :vsn))
   end
 end

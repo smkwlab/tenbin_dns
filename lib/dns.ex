@@ -2,7 +2,7 @@ defmodule DNS do
   @moduledoc """
   DNS constants and mappings for types, classes, response codes, and EDNS options.
 
-  This module provides high-performance constant mappings for DNS protocol values.
+  This module provides constant mappings for DNS protocol values.
   All lookups are compile-time optimized with pre-computed maps and aggressive
   function inlining for maximum speed.
 
