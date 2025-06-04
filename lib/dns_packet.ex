@@ -969,8 +969,10 @@ defmodule DNSpacket do
 
   @doc false
   def create_rdata(rdata, type, _) when type in [:svcb, :https] do
-    # Basic SVCB/HTTPS support - priority and target name only
-    <<rdata.priority::16>> <> create_domain_name(rdata.target)
+    # SVCB/HTTPS support with Service Parameters
+    target_name = create_domain_name(rdata.target)
+    svc_params = create_svc_params(Map.get(rdata, :svc_params, %{}))
+    <<rdata.priority::16>> <> target_name <> svc_params
   end
 
   @doc false
@@ -1054,6 +1056,122 @@ defmodule DNSpacket do
       DNS.type(type_code) || type_code
     end)
   end
+
+  @doc false
+  def create_svc_params(params) when is_map(params) do
+    params
+    |> Enum.sort_by(fn {key, _} -> svc_param_key_code(key) end)
+    |> Enum.map(&create_svc_param/1)
+    |> IO.iodata_to_binary()
+  end
+
+  def create_svc_params(_), do: <<>>
+
+  defp create_svc_param({:alpn, alpn_list}) when is_list(alpn_list) do
+    alpn_data = alpn_list
+                |> Enum.map(&create_character_string/1)
+                |> IO.iodata_to_binary()
+    <<1::16, byte_size(alpn_data)::16, alpn_data::binary>>
+  end
+
+  defp create_svc_param({:port, port}) when is_integer(port) do
+    <<3::16, 2::16, port::16>>
+  end
+
+  defp create_svc_param({:ipv4_hints, ip_list}) when is_list(ip_list) do
+    ip_data = ip_list
+              |> Enum.map(fn {a, b, c, d} -> <<a::8, b::8, c::8, d::8>> end)
+              |> IO.iodata_to_binary()
+    <<4::16, byte_size(ip_data)::16, ip_data::binary>>
+  end
+
+  defp create_svc_param({:ipv6_hints, ip_list}) when is_list(ip_list) do
+    ip_data = ip_list
+              |> Enum.map(fn {a1, a2, a3, a4, a5, a6, a7, a8} -> 
+                <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>
+              end)
+              |> IO.iodata_to_binary()
+    <<6::16, byte_size(ip_data)::16, ip_data::binary>>
+  end
+
+  defp create_svc_param({key, value}) when is_integer(key) and is_binary(value) do
+    # Generic parameter
+    <<key::16, byte_size(value)::16, value::binary>>
+  end
+
+  defp create_svc_param(_), do: <<>>
+
+  defp svc_param_key_code(:mandatory), do: 0
+  defp svc_param_key_code(:alpn), do: 1
+  defp svc_param_key_code(:no_default_alpn), do: 2
+  defp svc_param_key_code(:port), do: 3
+  defp svc_param_key_code(:ipv4_hints), do: 4
+  defp svc_param_key_code(:ech), do: 5
+  defp svc_param_key_code(:ipv6_hints), do: 6
+  defp svc_param_key_code(key) when is_integer(key), do: key
+  defp svc_param_key_code(_), do: 65_535
+
+  @doc false
+  def parse_svc_params(<<>>), do: %{}
+
+  def parse_svc_params(<<key::16, length::16, value::binary-size(length), rest::binary>>) do
+    param = parse_svc_param(key, value)
+    Map.merge(param, parse_svc_params(rest))
+  end
+
+  def parse_svc_params(_), do: %{}
+
+  defp parse_svc_param(1, alpn_data) do
+    # ALPN parameter
+    alpn_list = parse_alpn_list(alpn_data, [])
+    %{alpn: alpn_list}
+  end
+
+  defp parse_svc_param(3, <<port::16>>) do
+    # Port parameter
+    %{port: port}
+  end
+
+  defp parse_svc_param(4, ip_data) do
+    # IPv4 hints
+    ipv4_list = parse_ipv4_hints(ip_data, [])
+    %{ipv4_hints: ipv4_list}
+  end
+
+  defp parse_svc_param(6, ip_data) do
+    # IPv6 hints
+    ipv6_list = parse_ipv6_hints(ip_data, [])
+    %{ipv6_hints: ipv6_list}
+  end
+
+  defp parse_svc_param(key, value) do
+    # Generic parameter
+    %{key => value}
+  end
+
+  defp parse_alpn_list(<<>>, acc), do: Enum.reverse(acc)
+
+  defp parse_alpn_list(<<length::8, alpn::binary-size(length), rest::binary>>, acc) do
+    parse_alpn_list(rest, [alpn | acc])
+  end
+
+  defp parse_alpn_list(_, acc), do: Enum.reverse(acc)
+
+  defp parse_ipv4_hints(<<>>, acc), do: Enum.reverse(acc)
+
+  defp parse_ipv4_hints(<<a::8, b::8, c::8, d::8, rest::binary>>, acc) do
+    parse_ipv4_hints(rest, [{a, b, c, d} | acc])
+  end
+
+  defp parse_ipv4_hints(_, acc), do: Enum.reverse(acc)
+
+  defp parse_ipv6_hints(<<>>, acc), do: Enum.reverse(acc)
+
+  defp parse_ipv6_hints(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16, rest::binary>>, acc) do
+    parse_ipv6_hints(rest, [{a1, a2, a3, a4, a5, a6, a7, a8} | acc])
+  end
+
+  defp parse_ipv6_hints(_, acc), do: Enum.reverse(acc)
 
   @doc false
   def create_domain_name(name) do
@@ -1486,11 +1604,13 @@ defmodule DNSpacket do
   @doc false
   def parse_rdata(<<priority :: unsigned-integer-size(16),
                     tmp_body :: binary>>, type, _, orig_body) when type in [:svcb, :https] do
-    # Basic SVCB/HTTPS support - priority and target name only
-    {_, _, target} = parse_name(tmp_body, orig_body, "")
+    # SVCB/HTTPS support with Service Parameters
+    {rest, _, target} = parse_name(tmp_body, orig_body, "")
+    svc_params = parse_svc_params(rest)
     %{
       priority: priority,
       target: target,
+      svc_params: svc_params,
     }
   end
 
