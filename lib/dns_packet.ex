@@ -91,6 +91,12 @@ defmodule DNSpacket do
 
   defp merge_edns_info_to_additional(additional, nil), do: additional
 
+  # Optimized: handle empty additional section (most common case)
+  defp merge_edns_info_to_additional([], edns_info) do
+    # Fast path: no existing records to check, avoid Enum.reject
+    [create_edns_info_record(edns_info)]
+  end
+
   defp merge_edns_info_to_additional(additional, edns_info) do
     # Remove any existing OPT records from additional section
     non_opt_records = Enum.reject(additional, &(&1.type == :opt))
