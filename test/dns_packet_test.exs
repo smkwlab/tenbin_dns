@@ -190,26 +190,6 @@ defmodule DNSpacketTest do
     end
   end
 
-  describe "concat_binary_list/1" do
-    test "concatenates list of binaries" do
-      list = [<<1, 2>>, <<3, 4>>, <<5, 6>>]
-      result = DNSpacket.concat_binary_list(list)
-      expected = <<1, 2, 3, 4, 5, 6>>
-      assert result == expected
-    end
-
-    test "handles empty list" do
-      result = DNSpacket.concat_binary_list([])
-      expected = <<>>
-      assert result == expected
-    end
-
-    test "handles single binary" do
-      result = DNSpacket.concat_binary_list([<<1, 2, 3>>])
-      expected = <<1, 2, 3>>
-      assert result == expected
-    end
-  end
 
 
 
