@@ -4,9 +4,9 @@ defmodule DNSpacket do
   DNS packet parsing and creation module.
 
   This module provides functionality for creating and parsing DNS packets
-  according to RFC 1035 and related specifications. It supports standard
-  DNS records (A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA) and EDNS0
-  extensions including OPT records.
+  according to RFC 1035 and related specifications. It supports 19+ DNS
+  record types including A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, CAA, SRV,
+  NAPTR, DNAME, DNSKEY, DS, RRSIG, NSEC, SVCB, HTTPS and EDNS0 extensions.
 
   The module is optimized with compile-time optimizations,
   aggressive function inlining, and efficient binary pattern matching.
@@ -925,12 +925,253 @@ defmodule DNSpacket do
   end
 
   @doc false
+  def create_rdata(rdata, :srv, _) do
+    <<rdata.priority::16, rdata.weight::16, rdata.port::16>> <> create_domain_name(rdata.target)
+  end
+
+  @doc false
+  def create_rdata(rdata, :naptr, _) do
+    <<rdata.order::16, rdata.preference::16, 
+      byte_size(rdata.flags)::8, rdata.flags::binary,
+      byte_size(rdata.services)::8, rdata.services::binary,
+      byte_size(rdata.regexp)::8, rdata.regexp::binary>> <> 
+    create_domain_name(rdata.replacement)
+  end
+
+  @doc false
+  def create_rdata(rdata, :dname, _) do
+    create_domain_name(rdata.target)
+  end
+
+  @doc false
+  def create_rdata(rdata, :dnskey, _) do
+    <<rdata.flags::16, rdata.protocol::8, rdata.algorithm::8, rdata.public_key::binary>>
+  end
+
+  @doc false
+  def create_rdata(rdata, :ds, _) do
+    <<rdata.key_tag::16, rdata.algorithm::8, rdata.digest_type::8, rdata.digest::binary>>
+  end
+
+  @doc false
+  def create_rdata(rdata, :rrsig, _) do
+    <<rdata.type_covered::16, rdata.algorithm::8, rdata.labels::8, rdata.original_ttl::32,
+      rdata.signature_expiration::32, rdata.signature_inception::32, rdata.key_tag::16>> <>
+    create_domain_name(rdata.signer_name) <>
+    <<rdata.signature::binary>>
+  end
+
+  @doc false
+  def create_rdata(rdata, :nsec, _) do
+    create_domain_name(rdata.next_domain_name) <>
+    create_type_bitmap(rdata.type_bit_maps)
+  end
+
+  @doc false
+  def create_rdata(rdata, type, _) when type in [:svcb, :https] do
+    # SVCB/HTTPS support with Service Parameters
+    target_name = create_domain_name(rdata.target)
+    svc_params = create_svc_params(Map.get(rdata, :svc_params, %{}))
+    <<rdata.priority::16>> <> target_name <> svc_params
+  end
+
+  @doc false
   def create_rdata(rdata, _, _) do
     # Fallback for unknown types
     rdata
   end
 
   defp add_rdlength(rdata), do: <<byte_size(rdata)::16>> <> rdata
+
+  @doc false
+  def create_type_bitmap(type_list) when is_list(type_list) do
+    # Convert type atoms to numbers and create bitmap
+    type_numbers = Enum.map(type_list, &DNS.type_code/1)
+    create_type_bitmap_from_numbers(type_numbers)
+  end
+
+  def create_type_bitmap(bitmap) when is_binary(bitmap), do: bitmap
+
+  defp create_type_bitmap_from_numbers(type_numbers) do
+    # Group types by window (each window covers 256 types)
+    windows = Enum.group_by(type_numbers, &div(&1, 256))
+    
+    # Create bitmap for each window
+    Enum.reduce(windows, <<>>, fn {window, types}, acc ->
+      bitmap = create_window_bitmap(types, window * 256)
+      window_data = <<window::8, byte_size(bitmap)::8, bitmap::binary>>
+      acc <> window_data
+    end)
+  end
+
+  defp create_window_bitmap(types, window_base) do
+    # Create bitmap for types within a window
+    relative_types = Enum.map(types, &(&1 - window_base))
+    max_type = Enum.max(relative_types)
+    byte_count = div(max_type, 8) + 1
+    
+    # Initialize bitmap with zeros
+    bitmap = <<0::size(byte_count * 8)>>
+    
+    # Set bits for each type
+    Enum.reduce(relative_types, bitmap, fn type, acc ->
+      byte_pos = div(type, 8)
+      bit_pos = 7 - rem(type, 8)
+      set_bit_in_bitmap(acc, byte_pos, bit_pos)
+    end)
+  end
+
+  defp set_bit_in_bitmap(bitmap, byte_pos, bit_pos) do
+    <<prefix::binary-size(byte_pos), byte::8, suffix::binary>> = bitmap
+    new_byte = byte ||| (1 <<< bit_pos)
+    prefix <> <<new_byte::8>> <> suffix
+  end
+
+  @doc false
+  def parse_type_bitmap(<<>>), do: []
+
+  def parse_type_bitmap(<<window::8, length::8, bitmap::binary-size(length), rest::binary>>) do
+    types = parse_window_bitmap(bitmap, window * 256)
+    types ++ parse_type_bitmap(rest)
+  end
+
+  def parse_type_bitmap(data), do: data  # Return raw data if parsing fails
+
+  defp parse_window_bitmap(bitmap, window_base) do
+    bitmap
+    |> :binary.bin_to_list()
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {byte, byte_index} ->
+      parse_byte_bitmap(byte, window_base + byte_index * 8)
+    end)
+  end
+
+  defp parse_byte_bitmap(byte, base_type) do
+    0..7
+    |> Enum.filter(fn bit_pos ->
+      (byte &&& (1 <<< (7 - bit_pos))) != 0
+    end)
+    |> Enum.map(fn bit_pos ->
+      type_code = base_type + bit_pos
+      DNS.type(type_code) || type_code
+    end)
+  end
+
+  @doc false
+  def create_svc_params(params) when is_map(params) do
+    params
+    |> Enum.sort_by(fn {key, _} -> svc_param_key_code(key) end)
+    |> Enum.map(&create_svc_param/1)
+    |> IO.iodata_to_binary()
+  end
+
+  def create_svc_params(_), do: <<>>
+
+  defp create_svc_param({:alpn, alpn_list}) when is_list(alpn_list) do
+    alpn_data = alpn_list
+                |> Enum.map(&create_character_string/1)
+                |> IO.iodata_to_binary()
+    <<1::16, byte_size(alpn_data)::16, alpn_data::binary>>
+  end
+
+  defp create_svc_param({:port, port}) when is_integer(port) do
+    <<3::16, 2::16, port::16>>
+  end
+
+  defp create_svc_param({:ipv4_hints, ip_list}) when is_list(ip_list) do
+    ip_data = ip_list
+              |> Enum.map(fn {a, b, c, d} -> <<a::8, b::8, c::8, d::8>> end)
+              |> IO.iodata_to_binary()
+    <<4::16, byte_size(ip_data)::16, ip_data::binary>>
+  end
+
+  defp create_svc_param({:ipv6_hints, ip_list}) when is_list(ip_list) do
+    ip_data = ip_list
+              |> Enum.map(fn {a1, a2, a3, a4, a5, a6, a7, a8} -> 
+                <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>
+              end)
+              |> IO.iodata_to_binary()
+    <<6::16, byte_size(ip_data)::16, ip_data::binary>>
+  end
+
+  defp create_svc_param({key, value}) when is_integer(key) and is_binary(value) do
+    # Generic parameter
+    <<key::16, byte_size(value)::16, value::binary>>
+  end
+
+  defp create_svc_param(_), do: <<>>
+
+  defp svc_param_key_code(:mandatory), do: 0
+  defp svc_param_key_code(:alpn), do: 1
+  defp svc_param_key_code(:no_default_alpn), do: 2
+  defp svc_param_key_code(:port), do: 3
+  defp svc_param_key_code(:ipv4_hints), do: 4
+  defp svc_param_key_code(:ech), do: 5
+  defp svc_param_key_code(:ipv6_hints), do: 6
+  defp svc_param_key_code(key) when is_integer(key), do: key
+  defp svc_param_key_code(_), do: 65_535
+
+  @doc false
+  def parse_svc_params(<<>>), do: %{}
+
+  def parse_svc_params(<<key::16, length::16, value::binary-size(length), rest::binary>>) do
+    param = parse_svc_param(key, value)
+    Map.merge(param, parse_svc_params(rest))
+  end
+
+  def parse_svc_params(_), do: %{}
+
+  defp parse_svc_param(1, alpn_data) do
+    # ALPN parameter
+    alpn_list = parse_alpn_list(alpn_data, [])
+    %{alpn: alpn_list}
+  end
+
+  defp parse_svc_param(3, <<port::16>>) do
+    # Port parameter
+    %{port: port}
+  end
+
+  defp parse_svc_param(4, ip_data) do
+    # IPv4 hints
+    ipv4_list = parse_ipv4_hints(ip_data, [])
+    %{ipv4_hints: ipv4_list}
+  end
+
+  defp parse_svc_param(6, ip_data) do
+    # IPv6 hints
+    ipv6_list = parse_ipv6_hints(ip_data, [])
+    %{ipv6_hints: ipv6_list}
+  end
+
+  defp parse_svc_param(key, value) do
+    # Generic parameter
+    %{key => value}
+  end
+
+  defp parse_alpn_list(<<>>, acc), do: Enum.reverse(acc)
+
+  defp parse_alpn_list(<<length::8, alpn::binary-size(length), rest::binary>>, acc) do
+    parse_alpn_list(rest, [alpn | acc])
+  end
+
+  defp parse_alpn_list(_, acc), do: Enum.reverse(acc)
+
+  defp parse_ipv4_hints(<<>>, acc), do: Enum.reverse(acc)
+
+  defp parse_ipv4_hints(<<a::8, b::8, c::8, d::8, rest::binary>>, acc) do
+    parse_ipv4_hints(rest, [{a, b, c, d} | acc])
+  end
+
+  defp parse_ipv4_hints(_, acc), do: Enum.reverse(acc)
+
+  defp parse_ipv6_hints(<<>>, acc), do: Enum.reverse(acc)
+
+  defp parse_ipv6_hints(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16, rest::binary>>, acc) do
+    parse_ipv6_hints(rest, [{a1, a2, a3, a4, a5, a6, a7, a8} | acc])
+  end
+
+  defp parse_ipv6_hints(_, acc), do: Enum.reverse(acc)
 
   @doc false
   def create_domain_name(name) do
@@ -1255,6 +1496,121 @@ defmodule DNSpacket do
       flag: flag,
       tag: tag,
       value: value,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<priority :: unsigned-integer-size(16),
+                    weight   :: unsigned-integer-size(16),
+                    port     :: unsigned-integer-size(16),
+                    tmp_body :: binary>>, :srv, _, orig_body) do
+    {_, _, target} = parse_name(tmp_body, orig_body, "")
+    %{
+      priority: priority,
+      weight: weight,
+      port: port,
+      target: target,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<order      :: unsigned-integer-size(16),
+                    preference :: unsigned-integer-size(16),
+                    flags_len  :: unsigned-integer-size(8),
+                    flags      :: binary-size(flags_len),
+                    services_len :: unsigned-integer-size(8),
+                    services   :: binary-size(services_len),
+                    regexp_len :: unsigned-integer-size(8),
+                    regexp     :: binary-size(regexp_len),
+                    tmp_body   :: binary>>, :naptr, _, orig_body) do
+    {_, _, replacement} = parse_name(tmp_body, orig_body, "")
+    %{
+      order: order,
+      preference: preference,
+      flags: flags,
+      services: services,
+      regexp: regexp,
+      replacement: replacement,
+    }
+  end
+
+  @doc false
+  def parse_rdata(rdata, :dname, _, orig_body) do
+    {_, _, target} = parse_name(rdata, orig_body, "")
+    %{
+      target: target,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<flags     :: unsigned-integer-size(16),
+                    protocol  :: unsigned-integer-size(8),
+                    algorithm :: unsigned-integer-size(8),
+                    public_key :: binary>>, :dnskey, _, _) do
+    %{
+      flags: flags,
+      protocol: protocol,
+      algorithm: algorithm,
+      public_key: public_key,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<key_tag     :: unsigned-integer-size(16),
+                    algorithm   :: unsigned-integer-size(8),
+                    digest_type :: unsigned-integer-size(8),
+                    digest      :: binary>>, :ds, _, _) do
+    %{
+      key_tag: key_tag,
+      algorithm: algorithm,
+      digest_type: digest_type,
+      digest: digest,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<type_covered         :: unsigned-integer-size(16),
+                    algorithm            :: unsigned-integer-size(8),
+                    labels               :: unsigned-integer-size(8),
+                    original_ttl         :: unsigned-integer-size(32),
+                    signature_expiration :: unsigned-integer-size(32),
+                    signature_inception  :: unsigned-integer-size(32),
+                    key_tag              :: unsigned-integer-size(16),
+                    tmp_body             :: binary>>, :rrsig, _, orig_body) do
+    {rest, _, signer_name} = parse_name(tmp_body, orig_body, "")
+    %{
+      type_covered: type_covered,
+      algorithm: algorithm,
+      labels: labels,
+      original_ttl: original_ttl,
+      signature_expiration: signature_expiration,
+      signature_inception: signature_inception,
+      key_tag: key_tag,
+      signer_name: signer_name,
+      signature: rest,
+    }
+  end
+
+  @doc false
+  def parse_rdata(rdata, :nsec, _, orig_body) do
+    {rest, _, next_domain_name} = parse_name(rdata, orig_body, "")
+    type_bit_maps = parse_type_bitmap(rest)
+    %{
+      next_domain_name: next_domain_name,
+      type_bit_maps: type_bit_maps,
+    }
+  end
+
+  @doc false
+  def parse_rdata(<<priority :: unsigned-integer-size(16),
+                    tmp_body :: binary>>, type, _, orig_body) when type in [:svcb, :https] do
+    # SVCB/HTTPS support with Service Parameters
+    {rest, _, target} = parse_name(tmp_body, orig_body, "")
+    svc_params = parse_svc_params(rest)
+    %{
+      priority: priority,
+      target: target,
+      svc_params: svc_params,
     }
   end
 

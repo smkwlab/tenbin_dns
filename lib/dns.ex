@@ -84,7 +84,13 @@ defmodule DNS do
     32 => :nimloc, # Nimrod Locator
     33 => :srv,    # RFC 2052 - Server Selection
     34 => :atma,   # ATM Address
+    35 => :naptr,  # RFC 3403 - Naming Authority Pointer
+    39 => :dname,  # RFC 2672 - DNAME
     41 => :opt,    # RFC 6891 - OPT
+    43 => :ds,     # RFC 4034 - Delegation Signer
+    46 => :rrsig,  # RFC 4034 - RRSIG
+    47 => :nsec,   # RFC 4034 - NSEC
+    48 => :dnskey, # RFC 4034 - DNS Key
     64 => :svcb,   # RFC 9460 - Service Binding
     65 => :https,  # RFC 9460 - HTTPS Service Parameter
     252 => :axfr,  # RFC 1035 - Authoritative Zone Transfer
