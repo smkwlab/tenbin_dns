@@ -398,8 +398,10 @@ defmodule DNSpacketTest do
       opt_data = <<8::16, 4::16, 1, 2, 3, 4>> <>  # ECS option
                  <<10::16, 8::16, 1, 2, 3, 4, 5, 6, 7, 8>>  # Cookie option
 
-      result = DNSpacket.parse_opt_rr([], opt_data)
-      assert length(result) == 2
+      result = DNSpacket.parse_opt_rr(%{}, opt_data)
+      assert map_size(result) == 2
+      assert Map.has_key?(result, :ecs)
+      assert Map.has_key?(result, :cookie)
     end
 
     test "parse_opt_rr with all supported EDNS options" do
@@ -446,10 +448,16 @@ defmodule DNSpacketTest do
         # DeviceID (code 26946)
         <<26_946::16, 9::16, "device123">>
 
-      result = DNSpacket.parse_opt_rr([], opt_data)
+      result = DNSpacket.parse_opt_rr(%{}, opt_data)
 
-      # Should parse all 20 options
-      assert length(result) == 20
+      # Should parse all 20 options (including unknowns which are accumulated in a list)
+      # Count known options + unknown list length
+      known_count = Map.drop(result, [:unknown]) |> map_size()
+      unknown_count = case Map.get(result, :unknown) do
+        nil -> 0
+        list -> length(list)
+      end
+      assert known_count + unknown_count == 20
 
       # Verify a few specific options - now using tuple format
       {ecs_key, ecs_opt} = Enum.find(result, fn {key, _} -> key == :ecs end)
@@ -1991,8 +1999,14 @@ defmodule DNSpacketTest do
       assert byte_size(result) > 0
 
       # Parse the result to verify all options are present
-      parsed_options = DNSpacket.parse_opt_rr([], result)
-      assert length(parsed_options) >= 20  # At least 20 options
+      parsed_options = DNSpacket.parse_opt_rr(%{}, result)
+      # Count known options + unknown list length
+      known_count = Map.drop(parsed_options, [:unknown]) |> map_size()
+      unknown_count = case Map.get(parsed_options, :unknown) do
+        nil -> 0
+        list -> length(list)
+      end
+      assert known_count + unknown_count >= 20  # At least 20 options
 
       # Verify a few specific options - now using tuple format
       assert Enum.any?(parsed_options, fn {key, _} -> key == :ecs end)
@@ -2047,11 +2061,12 @@ defmodule DNSpacketTest do
       result = DNSpacket.create_edns_options(options)
 
       # Should create both unknown options
-      parsed = DNSpacket.parse_opt_rr([], result)
-      assert length(parsed) == 2
-      # Unknown options are now tuples {:unknown, %{code: code, data: data}}
-      assert Enum.all?(parsed, fn {key, value} -> 
-        key == :unknown and value.data in [<<1, 2, 3>>, <<4, 5, 6, 7>>]
+      parsed = DNSpacket.parse_opt_rr(%{}, result)
+      unknown_options = Map.get(parsed, :unknown, [])
+      assert length(unknown_options) == 2
+      # Unknown options are stored in :unknown key as a list
+      assert Enum.all?(unknown_options, fn option -> 
+        option.data in [<<1, 2, 3>>, <<4, 5, 6, 7>>]
       end)
     end
   end

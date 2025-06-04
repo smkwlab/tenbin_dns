@@ -784,7 +784,7 @@ defmodule DNSpacket do
           dnssec: dnssec,
           z: z,
           rdlength: rdlength,
-          rdata: parse_opt_rr([], rdata),
+          rdata: parse_opt_rr(%{}, rdata),
        }  | result])
   end
 
@@ -932,11 +932,11 @@ defmodule DNSpacket do
     %{type: type, class: class, rdata: rdata}
   end
 
-  def parse_opt_rr(result, <<>>) do
-    result
+  def parse_opt_rr(result_map, <<>>) do
+    result_map
   end
 
-  def parse_opt_rr(result,
+  def parse_opt_rr(result_map,
     <<
     code   :: 16,
     length :: 16,
@@ -944,7 +944,14 @@ defmodule DNSpacket do
     opt_rr :: binary,
     >>) do
     {key, value} = parse_opt_code(DNS.option(code), data)
-    parse_opt_rr([{key, value} | result], opt_rr)
+    updated_map = if key == :unknown do
+      # Handle unknown options by accumulating them in a list
+      unknown_options = Map.get(result_map, :unknown, [])
+      Map.put(result_map, :unknown, [value | unknown_options])
+    else
+      Map.put(result_map, key, value)
+    end
+    parse_opt_rr(updated_map, opt_rr)
   end
 
   # IPv4 EDNS Client Subnet - return structured data directly
@@ -1109,23 +1116,32 @@ defmodule DNSpacket do
   def parse_edns_info(additional) do
     case Enum.find(additional, &match?(%{type: :opt}, &1)) do
       %{rdata: rdata} = opt_record ->
-        # Build options map directly from already-parsed rdata
-        options = build_edns_options_map(rdata)
-        %{
-          payload_size: Map.get(opt_record, :payload_size, 512),
-          ex_rcode: Map.get(opt_record, :ex_rcode, 0),
-          version: Map.get(opt_record, :version, 0),
-          dnssec: Map.get(opt_record, :dnssec, 0),
-          z: Map.get(opt_record, :z, 0),
-          options: options
-        }
+        # Determine options based on rdata format
+        options = case rdata do
+          options when is_map(options) -> options  # Direct use - optimized path
+          [] -> %{}  # Empty options
+          keyword_list when is_list(keyword_list) -> convert_keyword_list_to_options_map(keyword_list)  # Legacy format
+        end
+        
+        build_edns_info_result(opt_record, options)
       _ -> nil
     end
   end
 
-  defp build_edns_options_map(rdata) do
-    # Handle new structured format only
-    Enum.reduce(rdata, %{}, fn {key, value}, acc ->
+  defp build_edns_info_result(opt_record, options) do
+    %{
+      payload_size: Map.get(opt_record, :payload_size, 512),
+      ex_rcode: Map.get(opt_record, :ex_rcode, 0),
+      version: Map.get(opt_record, :version, 0),
+      dnssec: Map.get(opt_record, :dnssec, 0),
+      z: Map.get(opt_record, :z, 0),
+      options: options
+    }
+  end
+
+  defp convert_keyword_list_to_options_map(keyword_list) do
+    # Convert keyword list to map, properly handling multiple :unknown keys
+    Enum.reduce(keyword_list, %{}, fn {key, value}, acc ->
       if key == :unknown do
         # Handle unknown options by accumulating them in a list
         unknown_options = Map.get(acc, :unknown, [])
