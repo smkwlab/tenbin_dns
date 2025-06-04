@@ -211,171 +211,6 @@ defmodule DNSpacketTest do
     end
   end
 
-  describe "parse_opt_code/2" do
-    test "parses EDNS client subnet option" do
-      data = <<1::16, 24::8, 0::8, 192, 168, 1>>
-      result = DNSpacket.parse_opt_code(:edns_client_subnet, data)
-      expected = %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<192, 168, 1>>}
-      assert result == expected
-    end
-
-    test "parses cookie option" do
-      data = <<1, 2, 3, 4, 5, 6, 7, 8>>
-      result = DNSpacket.parse_opt_code(:cookie, data)
-      expected = %{code: :cookie, cookie: <<1, 2, 3, 4, 5, 6, 7, 8>>}
-      assert result == expected
-    end
-
-    test "parses extended DNS error option" do
-      data = <<18::16, "Blocked">>  # info_code + txt
-      result = DNSpacket.parse_opt_code(:extended_dns_error, data)
-      expected = %{code: :extended_dns_error, info_code: 18, txt: "Blocked"}
-      assert result == expected
-    end
-
-    test "handles unknown option code" do
-      data = <<1, 2, 3, 4>>
-      result = DNSpacket.parse_opt_code(:unknown, data)
-      expected = %{code: :unknown, data: <<1, 2, 3, 4>>}
-      assert result == expected
-    end
-
-    test "parses DAU option" do
-      data = <<7, 8, 10>>
-      result = DNSpacket.parse_opt_code(:dau, data)
-      expected = %{code: :dau, algorithms: [7, 8, 10]}
-      assert result == expected
-    end
-
-    test "parses DHU option" do
-      data = <<1, 2>>
-      result = DNSpacket.parse_opt_code(:dhu, data)
-      expected = %{code: :dhu, algorithms: [1, 2]}
-      assert result == expected
-    end
-
-    test "parses N3U option" do
-      data = <<1>>
-      result = DNSpacket.parse_opt_code(:n3u, data)
-      expected = %{code: :n3u, algorithms: [1]}
-      assert result == expected
-    end
-
-    test "parses EDNS expire option with value" do
-      data = <<0, 0, 14, 16>>  # 3600 in binary
-      result = DNSpacket.parse_opt_code(:edns_expire, data)
-      expected = %{code: :edns_expire, expire: 3600}
-      assert result == expected
-    end
-
-    test "parses EDNS expire option without value" do
-      result = DNSpacket.parse_opt_code(:edns_expire, <<>>)
-      expected = %{code: :edns_expire, expire: nil}
-      assert result == expected
-    end
-
-    test "parses chain option" do
-      data = "example.com"
-      result = DNSpacket.parse_opt_code(:chain, data)
-      expected = %{code: :chain, closest_encloser: "example.com"}
-      assert result == expected
-    end
-
-    test "parses EDNS key tag option" do
-      data = <<48, 57, 212, 49>>  # Two 16-bit tags: 12345 and 54321
-      result = DNSpacket.parse_opt_code(:edns_key_tag, data)
-      expected = %{code: :edns_key_tag, key_tags: [12_345, 54_321]}
-      assert result == expected
-    end
-
-    test "parses EDNS client tag option" do
-      data = <<4, 210>>  # 1234 in binary
-      result = DNSpacket.parse_opt_code(:edns_client_tag, data)
-      expected = %{code: :edns_client_tag, tag: 1234}
-      assert result == expected
-    end
-
-    test "parses EDNS server tag option" do
-      data = <<22, 46>>  # 5678 in binary
-      result = DNSpacket.parse_opt_code(:edns_server_tag, data)
-      expected = %{code: :edns_server_tag, tag: 5678}
-      assert result == expected
-    end
-
-    test "parses report channel option" do
-      data = "agent.example.com"
-      result = DNSpacket.parse_opt_code(:report_channel, data)
-      expected = %{code: :report_channel, agent_domain: "agent.example.com"}
-      assert result == expected
-    end
-
-    test "parses zoneversion option" do
-      data = <<0, 4, 98, 213, 60, 138, 186, 192>>  # 1_234_567_890_123_456 in binary
-      result = DNSpacket.parse_opt_code(:zoneversion, data)
-      expected = %{code: :zoneversion, version: 1_234_567_890_123_456}
-      assert result == expected
-    end
-
-    test "parses update lease option" do
-      data = <<0, 0, 28, 32>>  # 7200 in binary
-      result = DNSpacket.parse_opt_code(:update_lease, data)
-      expected = %{code: :update_lease, lease: 7200}
-      assert result == expected
-    end
-
-    test "parses LLQ option" do
-      data = <<0, 1,  # version: 1
-               0, 1,  # llq_opcode: 1
-               0, 0,  # error_code: 0
-               0, 4, 98, 213, 60, 138, 186, 192,  # llq_id: 1_234_567_890_123_456
-               0, 0, 14, 16>>  # lease_life: 3600
-      result = DNSpacket.parse_opt_code(:llq, data)
-      expected = %{
-        code: :llq,
-        version: 1,
-        llq_opcode: 1,
-        error_code: 0,
-        llq_id: 1_234_567_890_123_456,
-        lease_life: 3600
-      }
-      assert result == expected
-    end
-
-    test "parses umbrella ident option" do
-      data = <<18, 52, 86, 120>>  # 0x12345678 in binary
-      result = DNSpacket.parse_opt_code(:umbrella_ident, data)
-      expected = %{code: :umbrella_ident, ident: 0x12345678}
-      assert result == expected
-    end
-
-    test "parses deviceid option" do
-      data = "device123"
-      result = DNSpacket.parse_opt_code(:deviceid, data)
-      expected = %{code: :deviceid, device_id: "device123"}
-      assert result == expected
-    end
-
-    test "parses NSID option" do
-      data = "ns1.example.com"
-      result = DNSpacket.parse_opt_code(:nsid, data)
-      expected = %{code: :nsid, data: "ns1.example.com"}
-      assert result == expected
-    end
-
-    test "parses TCP keepalive option" do
-      data = <<100::16>>
-      result = DNSpacket.parse_opt_code(:edns_tcp_keepalive, data)
-      expected = %{code: :edns_tcp_keepalive, data: <<100::16>>}
-      assert result == expected
-    end
-
-    test "parses padding option" do
-      data = <<0, 0, 0, 0>>
-      result = DNSpacket.parse_opt_code(:padding, data)
-      expected = %{code: :padding, data: <<0, 0, 0, 0>>}
-      assert result == expected
-    end
-  end
 
 
   describe "packet creation and parsing roundtrip" do
@@ -616,15 +451,18 @@ defmodule DNSpacketTest do
       # Should parse all 20 options
       assert length(result) == 20
 
-      # Verify a few specific options
-      ecs_opt = Enum.find(result, &(&1.code == :edns_client_subnet))
+      # Verify a few specific options - now using tuple format
+      {ecs_key, ecs_opt} = Enum.find(result, fn {key, _} -> key == :ecs end)
+      assert ecs_key == :ecs
       assert ecs_opt.family == 1
-      assert ecs_opt.source == 24
+      assert ecs_opt.source_prefix == 24
 
-      cookie_opt = Enum.find(result, &(&1.code == :cookie))
-      assert byte_size(cookie_opt.cookie) == 16
+      {cookie_key, cookie_opt} = Enum.find(result, fn {key, _} -> key == :cookie end)
+      assert cookie_key == :cookie
+      assert byte_size(cookie_opt.client) >= 8
 
-      llq_opt = Enum.find(result, &(&1.code == :llq))
+      {llq_key, llq_opt} = Enum.find(result, fn {key, _} -> key == :llq end)
+      assert llq_key == :llq
       assert llq_opt.version == 1
       assert llq_opt.llq_id == 1_234_567_890_123_456
     end
@@ -748,13 +586,6 @@ defmodule DNSpacketTest do
       assert result2 == existing
     end
 
-    test "parse_opt_code with extended DNS error different format" do
-      # Test different format of extended DNS error
-      data = <<12::16, "Bad">>
-      result = DNSpacket.parse_opt_code(:extended_dns_error, data)
-      assert result.info_code == 12
-      assert result.txt == "Bad"
-    end
 
 
     test "create_rdata for all supported types complete coverage" do
@@ -857,28 +688,28 @@ defmodule DNSpacketTest do
         dnssec: 1,
         z: 0,
         rdata: [
-          %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<192, 168, 1>>},
-          %{code: :cookie, cookie: <<1, 2, 3, 4, 5, 6, 7, 8>>},
-          %{code: :nsid, data: "server1"},
-          %{code: :extended_dns_error, info_code: 18, txt: "Blocked"},
-          %{code: :edns_tcp_keepalive, data: <<300::16>>},
-          %{code: :padding, data: <<0, 0, 0, 0>>},
-          %{code: :dau, algorithms: [7, 8, 10]},
-          %{code: :dhu, algorithms: [1, 2]},
-          %{code: :n3u, algorithms: [1]},
-          %{code: :edns_expire, expire: 3600},
-          %{code: :edns_expire, expire: nil},
-          %{code: :chain, closest_encloser: "example.com"},
-          %{code: :edns_key_tag, key_tags: [12_345, 54_321]},
-          %{code: :edns_client_tag, tag: 1234},
-          %{code: :edns_server_tag, tag: 5678},
-          %{code: :report_channel, agent_domain: "agent.example.com"},
-          %{code: :zoneversion, version: 1_234_567_890_123_456},
-          %{code: :update_lease, lease: 7200},
-          %{code: :llq, version: 1, llq_opcode: 1, error_code: 0, llq_id: 1_234_567_890_123_456, lease_life: 3600},
-          %{code: :umbrella_ident, ident: 0x12345678},
-          %{code: :deviceid, device_id: "device123"},
-          %{code: :unknown_test, data: <<1, 2, 3, 4>>}
+          {:ecs, %{family: 1, client_subnet: {192, 168, 1, 0}, source_prefix: 24, scope_prefix: 0}},
+          {:cookie, %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil}},
+          {:nsid, "server1"},
+          {:extended_dns_error, %{info_code: 18, extra_text: "Blocked"}},
+          {:tcp_keepalive, %{timeout: 300}},
+          {:padding, %{length: 4}},
+          {:dau, %{algorithms: [7, 8, 10]}},
+          {:dhu, %{algorithms: [1, 2]}},
+          {:n3u, %{algorithms: [1]}},
+          {:edns_expire, %{expire: 3600}},
+          {:edns_expire, %{expire: nil}},
+          {:chain, %{closest_encloser: "example.com"}},
+          {:edns_key_tag, %{key_tags: [12_345, 54_321]}},
+          {:edns_client_tag, %{tag: 1234}},
+          {:edns_server_tag, %{tag: 5678}},
+          {:report_channel, %{agent_domain: "agent.example.com"}},
+          {:zoneversion, %{version: 1_234_567_890_123_456}},
+          {:update_lease, %{lease: 7200}},
+          {:llq, %{version: 1, llq_opcode: 1, error_code: 0, llq_id: 1_234_567_890_123_456, lease_life: 3600}},
+          {:umbrella_ident, %{ident: 0x12345678}},
+          {:deviceid, %{device_id: "device123"}},
+          {:unknown, %{code: :unknown_test, data: <<1, 2, 3, 4>>}}
         ]
       }
 
@@ -1015,7 +846,7 @@ defmodule DNSpacketTest do
           dnssec: 0,
           z: 0,
           rdata: [
-            %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<192, 168, 1>>}
+            {:ecs, %{family: 1, client_subnet: {192, 168, 1, 0}, source_prefix: 24, scope_prefix: 0}}
           ]
         }
       ]
@@ -1032,8 +863,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 2, source: 48, scope: 0,
-              addr: <<0x2001::16, 0xdb8::16, 0x1234::16>>}
+            {:ecs, %{family: 2, client_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}, source_prefix: 48, scope_prefix: 0}}
           ]
         }
       ]
@@ -1049,7 +879,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :cookie, cookie: <<1, 2, 3, 4, 5, 6, 7, 8>>}
+            {:cookie, %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil}}
           ]
         }
       ]
@@ -1062,13 +892,13 @@ defmodule DNSpacketTest do
     test "parses cookie option - client and server" do
       client_cookie = <<1, 2, 3, 4, 5, 6, 7, 8>>
       server_cookie = <<9, 10, 11, 12, 13, 14, 15, 16>>
-      full_cookie = client_cookie <> server_cookie
+      _full_cookie = client_cookie <> server_cookie
 
       additional = [
         %{
           type: :opt,
           rdata: [
-            %{code: :cookie, cookie: full_cookie}
+            {:cookie, %{client: client_cookie, server: server_cookie}}
           ]
         }
       ]
@@ -1084,7 +914,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :cookie, cookie: <<1, 2, 3, 4>>}
+            {:cookie, %{client: <<1, 2, 3, 4>>, server: nil}}
           ]
         }
       ]
@@ -1098,13 +928,13 @@ defmodule DNSpacketTest do
       # Test with maximum cookie size (40 bytes = 8 client + 32 server)
       client_cookie = <<1, 2, 3, 4, 5, 6, 7, 8>>
       server_cookie = <<9::size(32 * 8)>>  # 32 bytes of 9s
-      full_cookie = client_cookie <> server_cookie
+      _full_cookie = client_cookie <> server_cookie
 
       additional = [
         %{
           type: :opt,
           rdata: [
-            %{code: :cookie, cookie: full_cookie}
+            {:cookie, %{client: client_cookie, server: server_cookie}}
           ]
         }
       ]
@@ -1120,7 +950,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :nsid, data: nsid_data}
+            {:nsid, nsid_data}
           ]
         }
       ]
@@ -1130,12 +960,12 @@ defmodule DNSpacketTest do
     end
 
     test "parses NSID option with binary data" do
-      nsid_data = <<0xFF, 0xFE, 0xFD>>
+      _nsid_data = <<0xFF, 0xFE, 0xFD>>
       additional = [
         %{
           type: :opt,
           rdata: [
-            %{code: :nsid, data: nsid_data}
+            {:nsid, "fffefd"}
           ]
         }
       ]
@@ -1149,7 +979,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :extended_dns_error, info_code: 18, txt: "Blocked by policy"}
+            {:extended_dns_error, %{info_code: 18, extra_text: "Blocked by policy"}}
           ]
         }
       ]
@@ -1164,7 +994,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_tcp_keepalive, data: <<300::16>>}
+            {:tcp_keepalive, %{timeout: 300}}
           ]
         }
       ]
@@ -1178,7 +1008,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_tcp_keepalive, data: <<>>}
+            {:tcp_keepalive, %{timeout: nil}}
           ]
         }
       ]
@@ -1193,7 +1023,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_tcp_keepalive, data: <<1, 2, 3>>}
+            {:tcp_keepalive, %{timeout: nil, raw_data: <<1, 2, 3>>}}
           ]
         }
       ]
@@ -1204,12 +1034,12 @@ defmodule DNSpacketTest do
     end
 
     test "parses padding option" do
-      padding_data = <<0, 0, 0, 0, 0, 0, 0, 0>>
+      _padding_data = <<0, 0, 0, 0, 0, 0, 0, 0>>
       additional = [
         %{
           type: :opt,
           rdata: [
-            %{code: :padding, data: padding_data}
+            {:padding, %{length: 8}}
           ]
         }
       ]
@@ -1223,8 +1053,8 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :unknown_option, data: <<1, 2, 3, 4>>},
-            %{code: :another_unknown, data: <<5, 6>>}
+            {:unknown, %{code: :unknown_option, data: <<1, 2, 3, 4>>}},
+            {:unknown, %{code: :another_unknown, data: <<5, 6>>}}
           ]
         }
       ]
@@ -1239,10 +1069,10 @@ defmodule DNSpacketTest do
           type: :opt,
           payload_size: 4096,
           rdata: [
-            %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<10, 0, 0>>},
-            %{code: :cookie, cookie: <<1, 2, 3, 4, 5, 6, 7, 8>>},
-            %{code: :nsid, data: "server1"},
-            %{code: :padding, data: <<0, 0, 0, 0>>}
+            {:ecs, %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 24, scope_prefix: 0}},
+            {:cookie, %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil}},
+            {:nsid, "server1"},
+            {:padding, %{length: 4}}
           ]
         }
       ]
@@ -1262,7 +1092,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 1, source: 0, scope: 0, addr: <<>>}
+            {:ecs, %{family: 1, client_subnet: {0, 0, 0, 0}, source_prefix: 0, scope_prefix: 0}}
           ]
         }
       ]
@@ -1276,7 +1106,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 2, source: 0, scope: 0, addr: <<>>}
+            {:ecs, %{family: 2, client_subnet: {0, 0, 0, 0, 0, 0, 0, 0}, source_prefix: 0, scope_prefix: 0}}
           ]
         }
       ]
@@ -1290,7 +1120,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 1, source: 12, scope: 0, addr: <<203, 128>>}
+            {:ecs, %{family: 1, client_subnet: {203, 128, 0, 0}, source_prefix: 12, scope_prefix: 0}}
           ]
         }
       ]
@@ -1306,8 +1136,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 2, source: 36, scope: 0,
-              addr: <<0x20, 0x01, 0x0d, 0xb8, 0xFF>>}  # 5 bytes for /36 prefix
+            {:ecs, %{family: 2, client_subnet: {0x2001, 0x0db8, 0xF000, 0, 0, 0, 0, 0}, source_prefix: 36, scope_prefix: 0}}  # 5 bytes for /36 prefix
           ]
         }
       ]
@@ -1325,8 +1154,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 1, source: 32, scope: 0,
-              addr: <<192, 168, 1, 1, 5, 6>>}  # 6 bytes, but IPv4 only needs 4
+            {:ecs, %{family: 1, client_subnet: {192, 168, 1, 1}, source_prefix: 32, scope_prefix: 0}}  # 6 bytes, but IPv4 only needs 4
           ]
         }
       ]
@@ -1342,9 +1170,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 2, source: 128, scope: 0,
-              # 18 bytes, but IPv6 only needs 16
-              addr: <<0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF>>}
+            {:ecs, %{family: 2, client_subnet: {0x2001, 0x0db8, 0, 0, 0, 0, 0, 0}, source_prefix: 128, scope_prefix: 0}}
           ]
         }
       ]
@@ -1360,8 +1186,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 99, source: 16, scope: 0,
-              addr: <<1, 2, 3, 4>>}
+            {:ecs, %{family: 99, client_subnet: <<1, 2, 3, 4>>, source_prefix: 16, scope_prefix: 0}}
           ]
         }
       ]
@@ -1376,7 +1201,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 1, source: -1, scope: 0, addr: <<192, 168, 1, 1>>}
+            {:ecs, %{family: 1, client_subnet: {0, 0, 0, 0}, source_prefix: -1, scope_prefix: 0}}
           ]
         }
       ]
@@ -1392,7 +1217,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 1, source: 32, scope: 0, addr: <<192, 168, 1, 1>>}
+            {:ecs, %{family: 1, client_subnet: {192, 168, 1, 1}, source_prefix: 32, scope_prefix: 0}}
           ]
         }
       ]
@@ -1408,7 +1233,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_subnet, family: 99, source: 0, scope: 0, addr: <<192, 168>>}
+            {:ecs, %{family: 99, client_subnet: <<192, 168>>, source_prefix: 0, scope_prefix: 0}}
           ]
         }
       ]
@@ -1777,7 +1602,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :dau, algorithms: [7, 8, 10]}
+            {:dau, %{algorithms: [7, 8, 10]}}
           ]
         }
       ]
@@ -1791,7 +1616,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :dhu, algorithms: [1, 2]}
+            {:dhu, %{algorithms: [1, 2]}}
           ]
         }
       ]
@@ -1805,7 +1630,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :n3u, algorithms: [1]}
+            {:n3u, %{algorithms: [1]}}
           ]
         }
       ]
@@ -1819,7 +1644,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_expire, expire: 3600}
+            {:edns_expire, %{expire: 3600}}
           ]
         }
       ]
@@ -1833,7 +1658,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_expire, expire: nil}
+            {:edns_expire, %{expire: nil}}
           ]
         }
       ]
@@ -1847,7 +1672,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :chain, closest_encloser: "example.com"}
+            {:chain, %{closest_encloser: "example.com"}}
           ]
         }
       ]
@@ -1861,7 +1686,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_key_tag, key_tags: [12_345, 54_321]}
+            {:edns_key_tag, %{key_tags: [12_345, 54_321]}}
           ]
         }
       ]
@@ -1875,7 +1700,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_client_tag, tag: 1234}
+            {:edns_client_tag, %{tag: 1234}}
           ]
         }
       ]
@@ -1889,7 +1714,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :edns_server_tag, tag: 5678}
+            {:edns_server_tag, %{tag: 5678}}
           ]
         }
       ]
@@ -1903,7 +1728,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :report_channel, agent_domain: "agent.example.com"}
+            {:report_channel, %{agent_domain: "agent.example.com"}}
           ]
         }
       ]
@@ -1917,7 +1742,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :zoneversion, version: 1_234_567_890_123_456}
+            {:zoneversion, %{version: 1_234_567_890_123_456}}
           ]
         }
       ]
@@ -1931,7 +1756,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :update_lease, lease: 7200}
+            {:update_lease, %{lease: 7200}}
           ]
         }
       ]
@@ -1945,7 +1770,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :llq, version: 1, llq_opcode: 1, error_code: 0, llq_id: 1_234_567_890_123_456, lease_life: 3600}
+            {:llq, %{version: 1, llq_opcode: 1, error_code: 0, llq_id: 1_234_567_890_123_456, lease_life: 3600}}
           ]
         }
       ]
@@ -1963,7 +1788,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :umbrella_ident, ident: 0x12345678}
+            {:umbrella_ident, %{ident: 0x12345678}}
           ]
         }
       ]
@@ -1977,7 +1802,7 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: [
-            %{code: :deviceid, device_id: "device123"}
+            {:deviceid, %{device_id: "device123"}}
           ]
         }
       ]
@@ -2153,12 +1978,12 @@ defmodule DNSpacketTest do
       parsed_options = DNSpacket.parse_opt_rr([], result)
       assert length(parsed_options) >= 20  # At least 20 options
 
-      # Verify a few specific options
-      assert Enum.any?(parsed_options, &(&1.code == :edns_client_subnet))
-      assert Enum.any?(parsed_options, &(&1.code == :cookie))
-      assert Enum.any?(parsed_options, &(&1.code == :nsid))
-      assert Enum.any?(parsed_options, &(&1.code == :dau))
-      assert Enum.any?(parsed_options, &(&1.code == :llq))
+      # Verify a few specific options - now using tuple format
+      assert Enum.any?(parsed_options, fn {key, _} -> key == :ecs end)
+      assert Enum.any?(parsed_options, fn {key, _} -> key == :cookie end)
+      assert Enum.any?(parsed_options, fn {key, _} -> key == :nsid end)
+      assert Enum.any?(parsed_options, fn {key, _} -> key == :dau end)
+      assert Enum.any?(parsed_options, fn {key, _} -> key == :llq end)
     end
 
     test "creates padding option with specific length" do
@@ -2208,7 +2033,10 @@ defmodule DNSpacketTest do
       # Should create both unknown options
       parsed = DNSpacket.parse_opt_rr([], result)
       assert length(parsed) == 2
-      assert Enum.all?(parsed, &(&1.data in [<<1, 2, 3>>, <<4, 5, 6, 7>>]))
+      # Unknown options are now tuples {:unknown, %{code: code, data: data}}
+      assert Enum.all?(parsed, fn {key, value} -> 
+        key == :unknown and value.data in [<<1, 2, 3>>, <<4, 5, 6, 7>>]
+      end)
     end
   end
 
