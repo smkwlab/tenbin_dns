@@ -117,24 +117,24 @@ defmodule PerformanceBench do
         DNSpacket.parse_rdata(rdata, :aaaa, :in, <<>>)
       end,
 
-      # check_ecs function (identified as inefficient)
-      "check_ecs (empty)" => fn ->
-        DNSpacket.check_ecs([])
+      # edns_info function (identified as inefficient)
+      "edns_info (empty)" => fn ->
+        DNSpacket.edns_info([])
       end,
-      "check_ecs (with ECS)" => fn ->
+      "edns_info (with ECS)" => fn ->
         additional = [
           %{type: :opt, rdata: [
             %{code: :edns_client_subnet, family: 1, source: 24, scope: 0, addr: <<192, 168, 1>>}
           ]}
         ]
-        DNSpacket.check_ecs(additional)
+        DNSpacket.edns_info(additional)
       end,
-      "check_ecs (no ECS)" => fn ->
+      "edns_info (no ECS)" => fn ->
         additional = [
           %{type: :opt, rdata: [%{code: :cookie, cookie: <<1, 2, 3, 4>>}]},
           %{type: :a, rdata: %{addr: {192, 168, 1, 1}}}
         ]
-        DNSpacket.check_ecs(additional)
+        DNSpacket.edns_info(additional)
       end,
     },
     time: 5,

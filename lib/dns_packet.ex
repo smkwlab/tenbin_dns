@@ -139,7 +139,7 @@ defmodule DNSpacket do
   end
 
   # New structured format handlers
-  defp create_option_binary({:ecs, %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}) do
+  defp create_option_binary({:edns_client_subnet, %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}) do
     addr_bytes = create_ecs_address_bytes(family, subnet, source)
     data = <<family::16, source::8, scope::8>> <> addr_bytes
     <<DNS.option_code(:edns_client_subnet)::16, byte_size(data)::16>> <> data
@@ -163,11 +163,11 @@ defmodule DNSpacket do
     <<DNS.option_code(:extended_dns_error)::16, byte_size(data)::16>> <> data
   end
 
-  defp create_option_binary({:tcp_keepalive, %{timeout: nil}}) do
+  defp create_option_binary({:edns_tcp_keepalive, %{timeout: nil}}) do
     <<DNS.option_code(:edns_tcp_keepalive)::16, 0::16>>
   end
 
-  defp create_option_binary({:tcp_keepalive, %{timeout: timeout}}) when is_integer(timeout) do
+  defp create_option_binary({:edns_tcp_keepalive, %{timeout: timeout}}) when is_integer(timeout) do
     data = <<timeout::16>>
     <<DNS.option_code(:edns_tcp_keepalive)::16, byte_size(data)::16>> <> data
   end
@@ -267,7 +267,7 @@ defmodule DNSpacket do
 
   def create_edns_options(_), do: <<>>
 
-  defp create_edns_option({:ecs, ecs_data}) do
+  defp create_edns_option({:edns_client_subnet, ecs_data}) do
     [create_ecs_option(ecs_data)]
   end
 
@@ -283,7 +283,7 @@ defmodule DNSpacket do
     [create_extended_dns_error_option(ede_data)]
   end
 
-  defp create_edns_option({:tcp_keepalive, keepalive_data}) do
+  defp create_edns_option({:edns_tcp_keepalive, keepalive_data}) do
     [create_tcp_keepalive_option(keepalive_data)]
   end
 
@@ -516,8 +516,8 @@ defmodule DNSpacket do
     Enum.flat_map(options, &convert_option_to_rdata/1)
   end
 
-  defp convert_option_to_rdata({:ecs, %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}) do
-    [{:ecs, %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}]
+  defp convert_option_to_rdata({:edns_client_subnet, %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}) do
+    [{:edns_client_subnet, %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}]
   end
 
   defp convert_option_to_rdata({:cookie, %{client: client, server: server}}) do
@@ -532,8 +532,8 @@ defmodule DNSpacket do
     [{:extended_dns_error, %{info_code: info_code, extra_text: extra_text}}]
   end
 
-  defp convert_option_to_rdata({:tcp_keepalive, %{timeout: timeout}}) do
-    [{:tcp_keepalive, %{timeout: timeout}}]
+  defp convert_option_to_rdata({:edns_tcp_keepalive, %{timeout: timeout}}) do
+    [{:edns_tcp_keepalive, %{timeout: timeout}}]
   end
 
   defp convert_option_to_rdata({:padding, %{length: length}}) do
@@ -959,7 +959,7 @@ defmodule DNSpacket do
     padded = pad_address(address, 4)
     <<a::8, b::8, c::8, d::8>> = padded
     masked_addr = apply_prefix_mask({a, b, c, d}, source, 32)
-    {:ecs, %{
+    {:edns_client_subnet, %{
       family: 1,
       client_subnet: masked_addr,
       source_prefix: source,
@@ -972,7 +972,7 @@ defmodule DNSpacket do
     padded = pad_address(address, 16)
     <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>> = padded
     masked_addr = apply_prefix_mask({a1, a2, a3, a4, a5, a6, a7, a8}, source, 128)
-    {:ecs, %{
+    {:edns_client_subnet, %{
       family: 2,
       client_subnet: masked_addr,
       source_prefix: source,
@@ -982,7 +982,7 @@ defmodule DNSpacket do
 
   # Unknown family EDNS Client Subnet - return structured data directly
   defp parse_opt_code(:edns_client_subnet, <<family::16, source::8, scope::8, address::binary>>) do
-    {:ecs, %{
+    {:edns_client_subnet, %{
       family: family,
       client_subnet: address,
       source_prefix: source,
@@ -1091,7 +1091,7 @@ defmodule DNSpacket do
         %{timeout: timeout}
       _ -> %{timeout: nil, raw_data: data}
     end
-    {:tcp_keepalive, parsed_keepalive}
+    {:edns_tcp_keepalive, parsed_keepalive}
   end
 
   defp parse_opt_code(:padding, data) do
