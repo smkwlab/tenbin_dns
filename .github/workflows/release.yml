@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  # Disabled until ready for Hex publication
+  # push:
+  #   tags:
+  #     - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_to_hex:
+        description: 'Publish to Hex.pm'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: '27.0'
+        elixir-version: '1.18.3'
+        
+    - name: Install dependencies
+      run: |
+        mix local.hex --force
+        mix local.rebar --force
+        mix deps.get
+        
+    - name: Run tests
+      run: mix test
+      
+    - name: Build docs
+      run: mix docs
+      
+    - name: Publish to Hex
+      if: ${{ inputs.publish_to_hex }}
+      run: |
+        mix hex.config api_key $HEX_API_KEY
+        mix hex.publish --yes
+      env:
+        HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body: |
+          ## Release ${{ github.ref_name }}
+          
+          ### Installation
+          ```elixir
+          def deps do
+            [
+              {:tenbin_dns, "~> ${{ github.ref_name }}"}
+            ]
+          end
+          ```
+          
+          ### Documentation
+          [HexDocs](https://hexdocs.pm/tenbin_dns/${{ github.ref_name }}/)
+          
+          ### Changes
+          See [CHANGELOG.md](CHANGELOG.md) for details.
+        draft: false
+        prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}

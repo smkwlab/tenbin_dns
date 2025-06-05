@@ -9,9 +9,15 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# Prevent multiple reviews on rapid pushes
+concurrency:
+  group: ai-review-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run-review:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Gemini Review Bot
         uses: Nasubikun/ai-reviewer@v1
@@ -19,4 +25,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           LANGUAGE: "Japanese"
-          EXCLUDE_PATHS: ""
+          EXCLUDE_PATHS: "_build/**,deps/**,cover/**,log/**"
