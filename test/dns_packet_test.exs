@@ -2878,14 +2878,14 @@ defmodule DNSpacketTest do
 
     test "creates DS record rdata" do
       rdata = %{
-        key_tag: 12345,
+        key_tag: 12_345,
         algorithm: 7,
         digest_type: 1,
         digest: <<0x9F, 0x6A, 0x2B, 0x96>>
       }
 
       result = DNSpacket.create_rdata(rdata, :ds, :in)
-      expected = <<12345::16, 7, 1, 0x9F, 0x6A, 0x2B, 0x96>>
+      expected = <<12_345::16, 7, 1, 0x9F, 0x6A, 0x2B, 0x96>>
       assert result == expected
     end
 
@@ -3118,7 +3118,7 @@ defmodule DNSpacketTest do
         id: 0x4444,
         question: [%{qname: "keytag.test.", qtype: :dnskey, qclass: :in}],
         edns_info: %{
-          edns_key_tag_list: [12345, 67890]
+          edns_key_tag_list: [12_345, 67_890]
         }
       }
 
@@ -3154,7 +3154,7 @@ defmodule DNSpacketTest do
       assert is_binary(dname_result)
       assert byte_size(dname_result) > 5
 
-      # RRSIG record  
+      # RRSIG record
       rrsig_rdata = %{
         # A record
         type_covered: 1,
@@ -3163,7 +3163,7 @@ defmodule DNSpacketTest do
         original_ttl: 3600,
         signature_expiration: 1_640_995_200,
         signature_inception: 1_640_908_800,
-        key_tag: 12345,
+        key_tag: 12_345,
         signer_name: "example.com.",
         signature: <<1, 2, 3, 4, 5>>
       }

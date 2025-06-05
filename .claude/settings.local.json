@@ -38,7 +38,9 @@
       "WebFetch(domain:blog.cloudflare.com)",
       "Bash(dig:*)",
       "Bash(ls:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(mix format)",
+      "Bash(mix format:*)"
     ],
     "deny": []
   }

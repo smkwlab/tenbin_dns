@@ -726,7 +726,7 @@ defmodule DNSpacket do
   # Performance-critical function for EDNS creation - complexity is necessary for direct conversion efficiency
   # Variable reuse "options" is intentional for memory efficiency and clear code flow
   # credo:disable-for-this-file Credo.Check.Refactor.ABCSize
-  # credo:disable-for-this-file Credo.Check.Refactor.CyclomaticComplexity  
+  # credo:disable-for-this-file Credo.Check.Refactor.CyclomaticComplexity
   # credo:disable-for-this-file Credo.Check.Refactor.ReusedVariableNames
   defp convert_edns_hybrid_to_rdata(edns_info) do
     options = []
