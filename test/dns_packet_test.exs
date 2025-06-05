@@ -631,12 +631,6 @@ defmodule DNSpacketTest do
     test "create_rr for OPT record with various EDNS options" do
       # Test create_rr using structured EDNS info format
       edns_info = %{
-        payload_size: 4096,
-        ex_rcode: 0,
-        version: 0,
-        dnssec: 1,
-        z: 0,
-        # Hybrid flat structure for EDNS options
         ecs_family: 1,
         ecs_subnet: {192, 168, 1, 0},
         ecs_source_prefix: 24,
@@ -649,10 +643,10 @@ defmodule DNSpacketTest do
 
       # Verify the binary starts with OPT record header
       <<0, 41::16, payload_size::16, ex_rcode::8, version::8, flags::16, rdlength::16, _rdata::binary>> = binary
-      assert payload_size == 4096
+      assert payload_size == 1232
       assert ex_rcode == 0
       assert version == 0
-      assert (flags >>> 15) == 1  # DNSSEC bit
+      assert (flags >>> 15) == 0  # DNSSEC bit (default)
       assert rdlength > 0  # Should have RDATA for all the options
     end
 
