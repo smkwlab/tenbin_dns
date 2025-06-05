@@ -78,9 +78,9 @@ jobs:
           - otp: '27.0'
             elixir: '1.18.3'
             primary: true
-          - otp: '26.2'
-            elixir: '1.17.3'
-            primary: false
+#          - otp: '26.2'
+#            elixir: '1.17.3'
+#            primary: false
     
     steps:
     - name: Set up Git repository
