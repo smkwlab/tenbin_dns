@@ -10,7 +10,10 @@ defmodule Tenbin.DNS.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      
+
+      # Test coverage configuration
+      test_coverage: [summary: [threshold: 80]],
+
       # Documentation
       name: "Tenbin.DNS",
       description: "DNS packet parsing and creation library for Elixir",
