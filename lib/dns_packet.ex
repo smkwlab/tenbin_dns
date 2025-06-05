@@ -126,44 +126,59 @@ defmodule DNSpacket do
   import Bitwise
 
   # Aggressive inlining for maximum speed (over memory efficiency)
-  @compile {:inline, [
-    create_character_string: 1,
-    add_rdlength: 1,
-    parse_name: 3,
-    parse_name_acc: 3,
-    parse_rdata: 4,
-    parse_question_fast: 4,
-    parse_answer_fast: 4,
-    parse_answer_checkopt_fast: 6,
-    # Fast paths for common DNS record types
-    parse_a_fast: 1,
-    parse_aaaa_fast: 1
-  ]}
+  @compile {:inline,
+   [
+     create_character_string: 1,
+     add_rdlength: 1,
+     parse_name: 3,
+     parse_name_acc: 3,
+     parse_rdata: 4,
+     parse_question_fast: 4,
+     parse_answer_fast: 4,
+     parse_answer_checkopt_fast: 6,
+     # Fast paths for common DNS record types
+     parse_a_fast: 1,
+     parse_aaaa_fast: 1
+   ]}
 
   # Compile-time optimization for maximum speed
   @compile [:native, {:hipe, [:verbose, :o3]}]
 
-  defstruct id: 0, qr: 0, opcode: 0, aa: 0, tc: 0, rd: 0, ra: 0, z: 0, ad: 0, cd: 0, rcode: 0,
-               question: [], answer: [], authority: [], additional: [], edns_info: nil
+  defstruct id: 0,
+            qr: 0,
+            opcode: 0,
+            aa: 0,
+            tc: 0,
+            rd: 0,
+            ra: 0,
+            z: 0,
+            ad: 0,
+            cd: 0,
+            rcode: 0,
+            question: [],
+            answer: [],
+            authority: [],
+            additional: [],
+            edns_info: nil
 
   @type t :: %__MODULE__{
-    id: non_neg_integer(),
-    qr: 0 | 1,
-    opcode: non_neg_integer(),
-    aa: 0 | 1,
-    tc: 0 | 1,
-    rd: 0 | 1,
-    ra: 0 | 1,
-    z: 0 | 1,
-    ad: 0 | 1,
-    cd: 0 | 1,
-    rcode: non_neg_integer(),
-    question: list(map()),
-    answer: list(map()),
-    authority: list(map()),
-    additional: list(map()),
-    edns_info: map() | nil
-  }
+          id: non_neg_integer(),
+          qr: 0 | 1,
+          opcode: non_neg_integer(),
+          aa: 0 | 1,
+          tc: 0 | 1,
+          rd: 0 | 1,
+          ra: 0 | 1,
+          z: 0 | 1,
+          ad: 0 | 1,
+          cd: 0 | 1,
+          rcode: non_neg_integer(),
+          question: list(map()),
+          answer: list(map()),
+          authority: list(map()),
+          additional: list(map()),
+          edns_info: map() | nil
+        }
 
   @doc """
   Creates a DNS packet binary from a DNSpacket struct.
@@ -227,21 +242,10 @@ defmodule DNSpacket do
     authority_count = length(packet.authority)
     additional_count = length(additional_with_edns)
 
-    header = <<packet.id                     ::16,
-               packet.qr                     ::1,
-               packet.opcode                 ::4,
-               packet.aa                     ::1,
-               packet.tc                     ::1,
-               packet.rd                     ::1,
-               packet.ra                     ::1,
-               packet.z                      ::1,
-               packet.ad                     ::1,
-               packet.cd                     ::1,
-               packet.rcode                  ::4,
-               question_count                ::16,
-               answer_count                  ::16,
-               authority_count               ::16,
-               additional_count              ::16>>
+    header =
+      <<packet.id::16, packet.qr::1, packet.opcode::4, packet.aa::1, packet.tc::1, packet.rd::1,
+        packet.ra::1, packet.z::1, packet.ad::1, packet.cd::1, packet.rcode::4,
+        question_count::16, answer_count::16, authority_count::16, additional_count::16>>
 
     IO.iodata_to_binary([
       header,
@@ -271,7 +275,6 @@ defmodule DNSpacket do
     [opt_record | non_opt_records]
   end
 
-
   @doc false
   def create_question(question) do
     question
@@ -299,28 +302,38 @@ defmodule DNSpacket do
   # EDNS0
   @doc false
   def create_rr(%{type: :opt} = rr) do
-    rdata_binary = case rr.rdata do
-      [] -> <<>>
-      options when is_list(options) ->
-        options
-        |> Enum.map(&create_option_binary/1)
-        |> IO.iodata_to_binary()
-      _ -> <<>>
-    end
+    rdata_binary =
+      case rr.rdata do
+        [] ->
+          <<>>
 
-    <<0, DNS.type_code(:opt)::16, rr.payload_size::16, rr.ex_rcode::8, rr.version::8, rr.dnssec::1, rr.z::15>> <>
+        options when is_list(options) ->
+          options
+          |> Enum.map(&create_option_binary/1)
+          |> IO.iodata_to_binary()
+
+        _ ->
+          <<>>
+      end
+
+    <<0, DNS.type_code(:opt)::16, rr.payload_size::16, rr.ex_rcode::8, rr.version::8,
+      rr.dnssec::1,
+      rr.z::15>> <>
       add_rdlength(rdata_binary)
   end
 
   @doc false
   def create_rr(rr) do
     create_domain_name(rr.name) <>
-    <<DNS.type_code(rr.type)::16, DNS.class_code(rr.class)::16, rr.ttl::32>> <>
-    (rr.rdata |> create_rdata(rr.type, rr.class) |> add_rdlength)
+      <<DNS.type_code(rr.type)::16, DNS.class_code(rr.class)::16, rr.ttl::32>> <>
+      (rr.rdata |> create_rdata(rr.type, rr.class) |> add_rdlength)
   end
 
   # New structured format handlers
-  defp create_option_binary({:edns_client_subnet, %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}) do
+  defp create_option_binary(
+         {:edns_client_subnet,
+          %{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}}
+       ) do
     addr_bytes = create_ecs_address_bytes(family, subnet, source)
     data = <<family::16, source::8, scope::8>> <> addr_bytes
     <<DNS.option_code(:edns_client_subnet)::16, byte_size(data)::16>> <> data
@@ -330,7 +343,8 @@ defmodule DNSpacket do
     <<DNS.option_code(:cookie)::16, byte_size(client)::16>> <> client
   end
 
-  defp create_option_binary({:cookie, %{client: client, server: server}}) when is_binary(server) do
+  defp create_option_binary({:cookie, %{client: client, server: server}})
+       when is_binary(server) do
     cookie_data = client <> server
     <<DNS.option_code(:cookie)::16, byte_size(cookie_data)::16>> <> cookie_data
   end
@@ -339,7 +353,9 @@ defmodule DNSpacket do
     <<DNS.option_code(:nsid)::16, byte_size(nsid_data)::16>> <> nsid_data
   end
 
-  defp create_option_binary({:extended_dns_error, %{info_code: info_code, extra_text: extra_text}}) do
+  defp create_option_binary(
+         {:extended_dns_error, %{info_code: info_code, extra_text: extra_text}}
+       ) do
     data = <<info_code::16>> <> extra_text
     <<DNS.option_code(:extended_dns_error)::16, byte_size(data)::16>> <> data
   end
@@ -348,7 +364,8 @@ defmodule DNSpacket do
     <<DNS.option_code(:edns_tcp_keepalive)::16, 0::16>>
   end
 
-  defp create_option_binary({:edns_tcp_keepalive, %{timeout: timeout}}) when is_integer(timeout) do
+  defp create_option_binary({:edns_tcp_keepalive, %{timeout: timeout}})
+       when is_integer(timeout) do
     data = <<timeout::16>>
     <<DNS.option_code(:edns_tcp_keepalive)::16, byte_size(data)::16>> <> data
   end
@@ -382,7 +399,8 @@ defmodule DNSpacket do
     <<DNS.option_code(:edns_expire)::16, byte_size(data)::16>> <> data
   end
 
-  defp create_option_binary({:chain, %{closest_encloser: closest_encloser}}) when is_binary(closest_encloser) do
+  defp create_option_binary({:chain, %{closest_encloser: closest_encloser}})
+       when is_binary(closest_encloser) do
     <<DNS.option_code(:chain)::16, byte_size(closest_encloser)::16>> <> closest_encloser
   end
 
@@ -401,7 +419,8 @@ defmodule DNSpacket do
     <<DNS.option_code(:edns_server_tag)::16, byte_size(data)::16>> <> data
   end
 
-  defp create_option_binary({:report_channel, %{agent_domain: agent_domain}}) when is_binary(agent_domain) do
+  defp create_option_binary({:report_channel, %{agent_domain: agent_domain}})
+       when is_binary(agent_domain) do
     <<DNS.option_code(:report_channel)::16, byte_size(agent_domain)::16>> <> agent_domain
   end
 
@@ -415,7 +434,16 @@ defmodule DNSpacket do
     <<DNS.option_code(:update_lease)::16, byte_size(data)::16>> <> data
   end
 
-  defp create_option_binary({:llq, %{version: version, llq_opcode: llq_opcode, error_code: error_code, llq_id: llq_id, lease_life: lease_life}}) do
+  defp create_option_binary(
+         {:llq,
+          %{
+            version: version,
+            llq_opcode: llq_opcode,
+            error_code: error_code,
+            llq_id: llq_id,
+            lease_life: lease_life
+          }}
+       ) do
     data = <<version::16, llq_opcode::16, error_code::16, llq_id::64, lease_life::32>>
     <<DNS.option_code(:llq)::16, byte_size(data)::16>> <> data
   end
@@ -530,7 +558,12 @@ defmodule DNSpacket do
 
   defp create_edns_option(_), do: []
 
-  defp create_ecs_option(%{family: family, client_subnet: subnet, source_prefix: source, scope_prefix: scope}) do
+  defp create_ecs_option(%{
+         family: family,
+         client_subnet: subnet,
+         source_prefix: source,
+         scope_prefix: scope
+       }) do
     addr_bytes = create_ecs_address_bytes(family, subnet, source)
     data = <<family::16, source::8, scope::8>> <> addr_bytes
     <<DNS.option_code(:edns_client_subnet)::16, byte_size(data)::16>> <> data
@@ -611,7 +644,8 @@ defmodule DNSpacket do
     <<DNS.option_code(:edns_expire)::16, byte_size(data)::16>> <> data
   end
 
-  defp create_chain_option(%{closest_encloser: closest_encloser}) when is_binary(closest_encloser) do
+  defp create_chain_option(%{closest_encloser: closest_encloser})
+       when is_binary(closest_encloser) do
     <<DNS.option_code(:chain)::16, byte_size(closest_encloser)::16>> <> closest_encloser
   end
 
@@ -644,7 +678,13 @@ defmodule DNSpacket do
     <<DNS.option_code(:update_lease)::16, byte_size(data)::16>> <> data
   end
 
-  defp create_llq_option(%{version: version, llq_opcode: llq_opcode, error_code: error_code, llq_id: llq_id, lease_life: lease_life}) do
+  defp create_llq_option(%{
+         version: version,
+         llq_opcode: llq_opcode,
+         error_code: error_code,
+         llq_id: llq_id,
+         lease_life: lease_life
+       }) do
     data = <<version::16, llq_opcode::16, error_code::16, llq_id::64, lease_life::32>>
     <<DNS.option_code(:llq)::16, byte_size(data)::16>> <> data
   end
@@ -686,183 +726,249 @@ defmodule DNSpacket do
   # Performance-critical function for EDNS creation - complexity is necessary for direct conversion efficiency
   # Variable reuse "options" is intentional for memory efficiency and clear code flow
   # credo:disable-for-this-file Credo.Check.Refactor.ABCSize
-  # credo:disable-for-this-file Credo.Check.Refactor.CyclomaticComplexity  
+  # credo:disable-for-this-file Credo.Check.Refactor.CyclomaticComplexity
   # credo:disable-for-this-file Credo.Check.Refactor.ReusedVariableNames
+  # credo:disable-for-this-file Credo.Check.Refactor.NegatedIsNil
   defp convert_edns_hybrid_to_rdata(edns_info) do
     options = []
 
     # Convert flattened ECS to rdata format
-    options = case {Map.get(edns_info, :ecs_family), Map.get(edns_info, :ecs_subnet)} do
-      {family, subnet} when not is_nil(family) and not is_nil(subnet) ->
-        ecs_data = %{
-          family: family,
-          client_subnet: subnet,
-          source_prefix: Map.get(edns_info, :ecs_source_prefix),
-          scope_prefix: Map.get(edns_info, :ecs_scope_prefix)
-        }
-        [{:edns_client_subnet, ecs_data} | options]
-      _ -> options
-    end
+    options =
+      case {Map.get(edns_info, :ecs_family), Map.get(edns_info, :ecs_subnet)} do
+        {family, subnet} when not is_nil(family) and not is_nil(subnet) ->
+          ecs_data = %{
+            family: family,
+            client_subnet: subnet,
+            source_prefix: Map.get(edns_info, :ecs_source_prefix),
+            scope_prefix: Map.get(edns_info, :ecs_scope_prefix)
+          }
+
+          [{:edns_client_subnet, ecs_data} | options]
+
+        _ ->
+          options
+      end
 
     # Convert flattened cookie to rdata format
-    options = case Map.get(edns_info, :cookie_client) do
-      client when not is_nil(client) ->
-        cookie_data = %{
-          client: client,
-          server: Map.get(edns_info, :cookie_server)
-        }
-        [{:cookie, cookie_data} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :cookie_client) do
+        client when not is_nil(client) ->
+          cookie_data = %{
+            client: client,
+            server: Map.get(edns_info, :cookie_server)
+          }
+
+          [{:cookie, cookie_data} | options]
+
+        _ ->
+          options
+      end
 
     # Add NSID if present
-    options = case Map.get(edns_info, :nsid) do
-      nsid when not is_nil(nsid) -> [{:nsid, nsid} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :nsid) do
+        nsid when not is_nil(nsid) -> [{:nsid, nsid} | options]
+        _ -> options
+      end
 
     # Convert Extended DNS Error
-    options = case {Map.get(edns_info, :extended_dns_error_info_code), Map.get(edns_info, :extended_dns_error_extra_text)} do
-      {info_code, extra_text} when not is_nil(info_code) ->
-        error_data = %{
-          info_code: info_code,
-          extra_text: extra_text
-        }
-        [{:extended_dns_error, error_data} | options]
-      _ -> options
-    end
+    options =
+      case {Map.get(edns_info, :extended_dns_error_info_code),
+            Map.get(edns_info, :extended_dns_error_extra_text)} do
+        {info_code, extra_text} when not is_nil(info_code) ->
+          error_data = %{
+            info_code: info_code,
+            extra_text: extra_text
+          }
+
+          [{:extended_dns_error, error_data} | options]
+
+        _ ->
+          options
+      end
 
     # Convert TCP Keepalive
-    options = if Map.has_key?(edns_info, :edns_tcp_keepalive_timeout) do
-      tcp_data = %{
-        timeout: Map.get(edns_info, :edns_tcp_keepalive_timeout),
-        raw_data: Map.get(edns_info, :edns_tcp_keepalive_raw_data)
-      }
-      [{:edns_tcp_keepalive, tcp_data} | options]
-    else
-      options
-    end
+    options =
+      if Map.has_key?(edns_info, :edns_tcp_keepalive_timeout) do
+        tcp_data = %{
+          timeout: Map.get(edns_info, :edns_tcp_keepalive_timeout),
+          raw_data: Map.get(edns_info, :edns_tcp_keepalive_raw_data)
+        }
+
+        [{:edns_tcp_keepalive, tcp_data} | options]
+      else
+        options
+      end
 
     # Convert Padding
-    options = case Map.get(edns_info, :padding_length) do
-      length when not is_nil(length) ->
-        [{:padding, %{length: length}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :padding_length) do
+        length when not is_nil(length) ->
+          [{:padding, %{length: length}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert DAU
-    options = case Map.get(edns_info, :dau_algorithms) do
-      algorithms when not is_nil(algorithms) ->
-        [{:dau, %{algorithms: algorithms}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :dau_algorithms) do
+        algorithms when not is_nil(algorithms) ->
+          [{:dau, %{algorithms: algorithms}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert DHU
-    options = case Map.get(edns_info, :dhu_algorithms) do
-      algorithms when not is_nil(algorithms) ->
-        [{:dhu, %{algorithms: algorithms}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :dhu_algorithms) do
+        algorithms when not is_nil(algorithms) ->
+          [{:dhu, %{algorithms: algorithms}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert N3U
-    options = case Map.get(edns_info, :n3u_algorithms) do
-      algorithms when not is_nil(algorithms) ->
-        [{:n3u, %{algorithms: algorithms}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :n3u_algorithms) do
+        algorithms when not is_nil(algorithms) ->
+          [{:n3u, %{algorithms: algorithms}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert EDNS Expire
-    options = case Map.get(edns_info, :edns_expire_expire) do
-      expire when not is_nil(expire) ->
-        [{:edns_expire, %{expire: expire}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :edns_expire_expire) do
+        expire when not is_nil(expire) ->
+          [{:edns_expire, %{expire: expire}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert Chain
-    options = case Map.get(edns_info, :chain_closest_encloser) do
-      closest_encloser when not is_nil(closest_encloser) ->
-        [{:chain, %{closest_encloser: closest_encloser}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :chain_closest_encloser) do
+        closest_encloser when not is_nil(closest_encloser) ->
+          [{:chain, %{closest_encloser: closest_encloser}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert EDNS Key Tag
-    options = case Map.get(edns_info, :edns_key_tag_key_tags) do
-      key_tags when not is_nil(key_tags) ->
-        [{:edns_key_tag, %{key_tags: key_tags}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :edns_key_tag_key_tags) do
+        key_tags when not is_nil(key_tags) ->
+          [{:edns_key_tag, %{key_tags: key_tags}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert EDNS Client Tag
-    options = case Map.get(edns_info, :edns_client_tag_tag) do
-      tag when not is_nil(tag) ->
-        [{:edns_client_tag, %{tag: tag}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :edns_client_tag_tag) do
+        tag when not is_nil(tag) ->
+          [{:edns_client_tag, %{tag: tag}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert EDNS Server Tag
-    options = case Map.get(edns_info, :edns_server_tag_tag) do
-      tag when not is_nil(tag) ->
-        [{:edns_server_tag, %{tag: tag}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :edns_server_tag_tag) do
+        tag when not is_nil(tag) ->
+          [{:edns_server_tag, %{tag: tag}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert Report Channel
-    options = case Map.get(edns_info, :report_channel_agent_domain) do
-      agent_domain when not is_nil(agent_domain) ->
-        [{:report_channel, %{agent_domain: agent_domain}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :report_channel_agent_domain) do
+        agent_domain when not is_nil(agent_domain) ->
+          [{:report_channel, %{agent_domain: agent_domain}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert Zone Version
-    options = case Map.get(edns_info, :zoneversion_version) do
-      version when not is_nil(version) ->
-        [{:zoneversion, %{version: version}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :zoneversion_version) do
+        version when not is_nil(version) ->
+          [{:zoneversion, %{version: version}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert Update Lease
-    options = case Map.get(edns_info, :update_lease_lease) do
-      lease when not is_nil(lease) ->
-        [{:update_lease, %{lease: lease}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :update_lease_lease) do
+        lease when not is_nil(lease) ->
+          [{:update_lease, %{lease: lease}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert LLQ
-    options = case Map.get(edns_info, :llq_version) do
-      llq_version when not is_nil(llq_version) ->
-        llq_data = %{
-          version: llq_version,
-          llq_opcode: Map.get(edns_info, :llq_llq_opcode),
-          error_code: Map.get(edns_info, :llq_error_code),
-          llq_id: Map.get(edns_info, :llq_llq_id),
-          lease_life: Map.get(edns_info, :llq_lease_life)
-        }
-        [{:llq, llq_data} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :llq_version) do
+        llq_version when not is_nil(llq_version) ->
+          llq_data = %{
+            version: llq_version,
+            llq_opcode: Map.get(edns_info, :llq_llq_opcode),
+            error_code: Map.get(edns_info, :llq_error_code),
+            llq_id: Map.get(edns_info, :llq_llq_id),
+            lease_life: Map.get(edns_info, :llq_lease_life)
+          }
+
+          [{:llq, llq_data} | options]
+
+        _ ->
+          options
+      end
 
     # Convert Umbrella Ident
-    options = case Map.get(edns_info, :umbrella_ident_ident) do
-      ident when not is_nil(ident) ->
-        [{:umbrella_ident, %{ident: ident}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :umbrella_ident_ident) do
+        ident when not is_nil(ident) ->
+          [{:umbrella_ident, %{ident: ident}} | options]
+
+        _ ->
+          options
+      end
 
     # Convert Device ID
-    options = case Map.get(edns_info, :deviceid_device_id) do
-      device_id when not is_nil(device_id) ->
-        [{:deviceid, %{device_id: device_id}} | options]
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :deviceid_device_id) do
+        device_id when not is_nil(device_id) ->
+          [{:deviceid, %{device_id: device_id}} | options]
+
+        _ ->
+          options
+      end
 
     # Add unknown options
     # credo:disable-for-next-line Credo.Check.Refactor.VariableRebinding
-    options = case Map.get(edns_info, :unknown_options) do
-      unknown when is_map(unknown) and map_size(unknown) > 0 ->
-        unknown_list = Enum.map(unknown, fn {code, data} -> %{code: code, data: data} end)
-        unknown_list ++ options
-      _ -> options
-    end
+    options =
+      case Map.get(edns_info, :unknown_options) do
+        unknown when is_map(unknown) and map_size(unknown) > 0 ->
+          unknown_list = Enum.map(unknown, fn {code, data} -> %{code: code, data: data} end)
+          unknown_list ++ options
+
+        _ ->
+          options
+      end
 
     Enum.reverse(options)
   end
@@ -885,13 +991,9 @@ defmodule DNSpacket do
   @doc false
   def create_rdata(rdata, :soa, _) do
     create_domain_name(rdata.mname) <>
-    create_domain_name(rdata.rname) <>
-    <<rdata.serial ::32,
-      rdata.refresh::32,
-      rdata.retry  ::32,
-      rdata.expire ::32,
-      rdata.minimum::32,
-    >>
+      create_domain_name(rdata.rname) <>
+      <<rdata.serial::32, rdata.refresh::32, rdata.retry::32, rdata.expire::32,
+        rdata.minimum::32>>
   end
 
   @doc false
@@ -931,11 +1033,10 @@ defmodule DNSpacket do
 
   @doc false
   def create_rdata(rdata, :naptr, _) do
-    <<rdata.order::16, rdata.preference::16, 
-      byte_size(rdata.flags)::8, rdata.flags::binary,
-      byte_size(rdata.services)::8, rdata.services::binary,
-      byte_size(rdata.regexp)::8, rdata.regexp::binary>> <> 
-    create_domain_name(rdata.replacement)
+    <<rdata.order::16, rdata.preference::16, byte_size(rdata.flags)::8, rdata.flags::binary,
+      byte_size(rdata.services)::8, rdata.services::binary, byte_size(rdata.regexp)::8,
+      rdata.regexp::binary>> <>
+      create_domain_name(rdata.replacement)
   end
 
   @doc false
@@ -956,15 +1057,16 @@ defmodule DNSpacket do
   @doc false
   def create_rdata(rdata, :rrsig, _) do
     <<rdata.type_covered::16, rdata.algorithm::8, rdata.labels::8, rdata.original_ttl::32,
-      rdata.signature_expiration::32, rdata.signature_inception::32, rdata.key_tag::16>> <>
-    create_domain_name(rdata.signer_name) <>
-    <<rdata.signature::binary>>
+      rdata.signature_expiration::32, rdata.signature_inception::32,
+      rdata.key_tag::16>> <>
+      create_domain_name(rdata.signer_name) <>
+      <<rdata.signature::binary>>
   end
 
   @doc false
   def create_rdata(rdata, :nsec, _) do
     create_domain_name(rdata.next_domain_name) <>
-    create_type_bitmap(rdata.type_bit_maps)
+      create_type_bitmap(rdata.type_bit_maps)
   end
 
   @doc false
@@ -995,7 +1097,7 @@ defmodule DNSpacket do
   defp create_type_bitmap_from_numbers(type_numbers) do
     # Group types by window (each window covers 256 types)
     windows = Enum.group_by(type_numbers, &div(&1, 256))
-    
+
     # Create bitmap for each window
     Enum.reduce(windows, <<>>, fn {window, types}, acc ->
       bitmap = create_window_bitmap(types, window * 256)
@@ -1009,10 +1111,10 @@ defmodule DNSpacket do
     relative_types = Enum.map(types, &(&1 - window_base))
     max_type = Enum.max(relative_types)
     byte_count = div(max_type, 8) + 1
-    
+
     # Initialize bitmap with zeros
     bitmap = <<0::size(byte_count * 8)>>
-    
+
     # Set bits for each type
     Enum.reduce(relative_types, bitmap, fn type, acc ->
       byte_pos = div(type, 8)
@@ -1023,7 +1125,7 @@ defmodule DNSpacket do
 
   defp set_bit_in_bitmap(bitmap, byte_pos, bit_pos) do
     <<prefix::binary-size(byte_pos), byte::8, suffix::binary>> = bitmap
-    new_byte = byte ||| (1 <<< bit_pos)
+    new_byte = byte ||| 1 <<< bit_pos
     prefix <> <<new_byte::8>> <> suffix
   end
 
@@ -1035,7 +1137,8 @@ defmodule DNSpacket do
     types ++ parse_type_bitmap(rest)
   end
 
-  def parse_type_bitmap(data), do: data  # Return raw data if parsing fails
+  # Return raw data if parsing fails
+  def parse_type_bitmap(data), do: data
 
   defp parse_window_bitmap(bitmap, window_base) do
     bitmap
@@ -1049,7 +1152,7 @@ defmodule DNSpacket do
   defp parse_byte_bitmap(byte, base_type) do
     0..7
     |> Enum.filter(fn bit_pos ->
-      (byte &&& (1 <<< (7 - bit_pos))) != 0
+      (byte &&& 1 <<< (7 - bit_pos)) != 0
     end)
     |> Enum.map(fn bit_pos ->
       type_code = base_type + bit_pos
@@ -1068,9 +1171,11 @@ defmodule DNSpacket do
   def create_svc_params(_), do: <<>>
 
   defp create_svc_param({:alpn, alpn_list}) when is_list(alpn_list) do
-    alpn_data = alpn_list
-                |> Enum.map(&create_character_string/1)
-                |> IO.iodata_to_binary()
+    alpn_data =
+      alpn_list
+      |> Enum.map(&create_character_string/1)
+      |> IO.iodata_to_binary()
+
     <<1::16, byte_size(alpn_data)::16, alpn_data::binary>>
   end
 
@@ -1079,18 +1184,22 @@ defmodule DNSpacket do
   end
 
   defp create_svc_param({:ipv4_hints, ip_list}) when is_list(ip_list) do
-    ip_data = ip_list
-              |> Enum.map(fn {a, b, c, d} -> <<a::8, b::8, c::8, d::8>> end)
-              |> IO.iodata_to_binary()
+    ip_data =
+      ip_list
+      |> Enum.map(fn {a, b, c, d} -> <<a::8, b::8, c::8, d::8>> end)
+      |> IO.iodata_to_binary()
+
     <<4::16, byte_size(ip_data)::16, ip_data::binary>>
   end
 
   defp create_svc_param({:ipv6_hints, ip_list}) when is_list(ip_list) do
-    ip_data = ip_list
-              |> Enum.map(fn {a1, a2, a3, a4, a5, a6, a7, a8} -> 
-                <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>
-              end)
-              |> IO.iodata_to_binary()
+    ip_data =
+      ip_list
+      |> Enum.map(fn {a1, a2, a3, a4, a5, a6, a7, a8} ->
+        <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>
+      end)
+      |> IO.iodata_to_binary()
+
     <<6::16, byte_size(ip_data)::16, ip_data::binary>>
   end
 
@@ -1167,7 +1276,10 @@ defmodule DNSpacket do
 
   defp parse_ipv6_hints(<<>>, acc), do: Enum.reverse(acc)
 
-  defp parse_ipv6_hints(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16, rest::binary>>, acc) do
+  defp parse_ipv6_hints(
+         <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16, rest::binary>>,
+         acc
+       ) do
     parse_ipv6_hints(rest, [{a1, a2, a3, a4, a5, a6, a7, a8} | acc])
   end
 
@@ -1181,7 +1293,6 @@ defmodule DNSpacket do
     |> Enum.map(&create_character_string/1)
     |> IO.iodata_to_binary()
   end
-
 
   @doc false
   def create_character_string(txt), do: <<byte_size(txt)::8, txt::binary>>
@@ -1243,30 +1354,30 @@ defmodule DNSpacket do
   # Speed-optimized parse function with reduced function call overhead
   # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
   def parse(
-    <<
-    id      :: unsigned-integer-size(16),
-    qr      :: size(1),
-    opcode  :: size(4),
-    aa      :: size(1),
-    tc      :: size(1),
-    rd      :: size(1),
-    ra      :: size(1),
-    z       :: size(1),
-    ad      :: size(1),
-    cd      :: size(1),
-    rcode   :: size(4),
-    qdcount :: unsigned-integer-size(16),
-    ancount :: unsigned-integer-size(16),
-    nscount :: unsigned-integer-size(16),
-    arcount :: unsigned-integer-size(16),
-    body    :: binary,
-    >> = orig_body) do
-
+        <<
+          id::unsigned-integer-size(16),
+          qr::size(1),
+          opcode::size(4),
+          aa::size(1),
+          tc::size(1),
+          rd::size(1),
+          ra::size(1),
+          z::size(1),
+          ad::size(1),
+          cd::size(1),
+          rcode::size(4),
+          qdcount::unsigned-integer-size(16),
+          ancount::unsigned-integer-size(16),
+          nscount::unsigned-integer-size(16),
+          arcount::unsigned-integer-size(16),
+          body::binary
+        >> = orig_body
+      ) do
     # Inline parsing for maximum speed
-    {rest1, question}   = parse_question_fast(body, qdcount, orig_body, [])
-    {rest2, answer}     = parse_answer_fast(rest1, ancount, orig_body, [])
-    {rest3, authority}  = parse_answer_fast(rest2, nscount, orig_body, [])
-    {_, additional}     = parse_answer_fast(rest3, arcount, orig_body, [])
+    {rest1, question} = parse_question_fast(body, qdcount, orig_body, [])
+    {rest2, answer} = parse_answer_fast(rest1, ancount, orig_body, [])
+    {rest3, authority} = parse_answer_fast(rest2, nscount, orig_body, [])
+    {_, additional} = parse_answer_fast(rest3, arcount, orig_body, [])
 
     edns_info = parse_edns_info(additional)
 
@@ -1286,7 +1397,7 @@ defmodule DNSpacket do
       answer: answer,
       authority: authority,
       additional: additional,
-      edns_info: edns_info,
+      edns_info: edns_info
     }
   end
 
@@ -1295,71 +1406,86 @@ defmodule DNSpacket do
 
   defp parse_question_fast(body, count, orig_body, result) do
     {new_body, _, qname} = parse_name(body, orig_body, "")
+
     <<
-    qtype  :: unsigned-integer-size(16),
-    qclass :: unsigned-integer-size(16),
-    rest   :: binary,
+      qtype::unsigned-integer-size(16),
+      qclass::unsigned-integer-size(16),
+      rest::binary
     >> = new_body
+
     # Pre-cache DNS lookups
     qtype_atom = DNS.type(qtype)
     qclass_atom = DNS.class(qclass)
-    parse_question_fast(rest, count - 1, orig_body,
-      [%{qname: qname, qtype: qtype_atom, qclass: qclass_atom} | result])
+
+    parse_question_fast(rest, count - 1, orig_body, [
+      %{qname: qname, qtype: qtype_atom, qclass: qclass_atom} | result
+    ])
   end
 
   defp parse_answer_fast(body, 0, _orig_body, result), do: {body, result}
 
   defp parse_answer_fast(body, count, orig_body, result) do
     {new_body, _, name} = parse_name(body, orig_body, "")
+
     <<
-    type :: unsigned-integer-size(16),
-    rest :: binary,
+      type::unsigned-integer-size(16),
+      rest::binary
     >> = new_body
+
     parse_answer_checkopt_fast(rest, type, name, count, orig_body, result)
   end
 
   # OPT Record : 41 - Fast version
-  defp parse_answer_checkopt_fast(<<size     :: unsigned-integer-size(16),
-                                   ex_rcode :: unsigned-integer-size(8),
-                                   version  :: unsigned-integer-size(8),
-                                   dnssec   :: size(1),
-                                   z        :: size(15),
-                                   rdlength :: unsigned-integer-size(16),
-                                   rdata    :: binary-size(rdlength),
-                                   body     :: binary>>,
-    41, name, count, orig_body, result) do
-    parse_answer_fast(body, count - 1, orig_body,
-      [%{
-          name: name,
-          type: :opt,
-          payload_size: size,
-          ex_rcode: ex_rcode,
-          version: version,
-          dnssec: dnssec,
-          z: z,
-          rdlength: rdlength,
-          rdata: parse_opt_rr(%{}, rdata),
-       }  | result])
+  defp parse_answer_checkopt_fast(
+         <<size::unsigned-integer-size(16), ex_rcode::unsigned-integer-size(8),
+           version::unsigned-integer-size(8), dnssec::size(1), z::size(15),
+           rdlength::unsigned-integer-size(16), rdata::binary-size(rdlength), body::binary>>,
+         41,
+         name,
+         count,
+         orig_body,
+         result
+       ) do
+    parse_answer_fast(body, count - 1, orig_body, [
+      %{
+        name: name,
+        type: :opt,
+        payload_size: size,
+        ex_rcode: ex_rcode,
+        version: version,
+        dnssec: dnssec,
+        z: z,
+        rdlength: rdlength,
+        rdata: parse_opt_rr(%{}, rdata)
+      }
+      | result
+    ])
   end
 
-  defp parse_answer_checkopt_fast(<<class    :: unsigned-integer-size(16),
-                                   ttl      :: unsigned-integer-size(32),
-                                   rdlength :: unsigned-integer-size(16),
-                                   rdata    :: binary-size(rdlength),
-                                   body     :: binary>>,
-    type, name, count, orig_body, result) do
+  defp parse_answer_checkopt_fast(
+         <<class::unsigned-integer-size(16), ttl::unsigned-integer-size(32),
+           rdlength::unsigned-integer-size(16), rdata::binary-size(rdlength), body::binary>>,
+         type,
+         name,
+         count,
+         orig_body,
+         result
+       ) do
     # Cache DNS lookups to avoid double lookups
     type_atom = DNS.type(type)
     class_atom = DNS.class(class)
-    parse_answer_fast(body, count - 1, orig_body,
-      [%{
-          name: name,
-          type: type_atom,
-          class: class_atom,
-          ttl: ttl,
-          rdlength: rdlength,
-          rdata: parse_rdata(rdata, type_atom || type, class_atom || class, orig_body)
-       }  | result])
+
+    parse_answer_fast(body, count - 1, orig_body, [
+      %{
+        name: name,
+        type: type_atom,
+        class: class_atom,
+        ttl: ttl,
+        rdlength: rdlength,
+        rdata: parse_rdata(rdata, type_atom || type, class_atom || class, orig_body)
+      }
+      | result
+    ])
   end
 
   # Optimized parse_name using iolist accumulator for better performance
@@ -1393,7 +1519,7 @@ defmodule DNSpacket do
   # Direct pattern matching with no function call overhead
   @doc false
   def parse_a_fast(<<a::8, b::8, c::8, d::8>>), do: %{addr: {a, b, c, d}}
-  
+
   @doc false
   def parse_aaaa_fast(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>) do
     %{addr: {a1, a2, a3, a4, a5, a6, a7, a8}}
@@ -1403,23 +1529,30 @@ defmodule DNSpacket do
   @doc false
   def parse_rdata(<<a::8, b::8, c::8, d::8>>, :a, :in, _), do: parse_a_fast(<<a, b, c, d>>)
   @doc false
-  def parse_rdata(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>, :aaaa, :in, _) do
+  def parse_rdata(
+        <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>,
+        :aaaa,
+        :in,
+        _
+      ) do
     parse_aaaa_fast(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>)
   end
 
   @doc false
   def parse_rdata(rdata, :ns, _, orig_body) do
     {_, _, name} = parse_name(rdata, orig_body, "")
+
     %{
-      name: name,
+      name: name
     }
   end
 
   @doc false
   def parse_rdata(rdata, :cname, _, orig_body) do
     {_, _, name} = parse_name(rdata, orig_body, "")
+
     %{
-      name: name,
+      name: name
     }
   end
 
@@ -1427,13 +1560,15 @@ defmodule DNSpacket do
   def parse_rdata(rdata, :soa, _, orig_body) do
     {rest1, _, mname} = parse_name(rdata, orig_body, "")
     {rest2, _, rname} = parse_name(rest1, orig_body, "")
+
     <<
-    serial  :: unsigned-integer-size(32),
-    refresh :: unsigned-integer-size(32),
-    retry   :: unsigned-integer-size(32),
-    expire  :: unsigned-integer-size(32),
-    minimum :: unsigned-integer-size(32),
+      serial::unsigned-integer-size(32),
+      refresh::unsigned-integer-size(32),
+      retry::unsigned-integer-size(32),
+      expire::unsigned-integer-size(32),
+      minimum::unsigned-integer-size(32)
     >> = rest2
+
     %{
       mname: mname,
       rname: rname,
@@ -1441,36 +1576,40 @@ defmodule DNSpacket do
       refresh: refresh,
       retry: retry,
       expire: expire,
-      minimum: minimum,
+      minimum: minimum
     }
   end
 
   @doc false
   def parse_rdata(rdata, :ptr, _, orig_body) do
     {_, _, name} = parse_name(rdata, orig_body, "")
+
     %{
-      name: name,
+      name: name
     }
   end
 
   @doc false
-  def parse_rdata(<<cpu_length :: unsigned-integer-size(8),
-                     cpu       :: binary-size(cpu_length),
-                     os_length :: unsigned-integer-size(8),
-                     os        :: binary-size(os_length)>>, :hinfo, _, _) do
+  def parse_rdata(
+        <<cpu_length::unsigned-integer-size(8), cpu::binary-size(cpu_length),
+          os_length::unsigned-integer-size(8), os::binary-size(os_length)>>,
+        :hinfo,
+        _,
+        _
+      ) do
     %{
       cpu: cpu,
-      os: os,
+      os: os
     }
   end
 
   @doc false
-  def parse_rdata(<<preference :: unsigned-integer-size(16),
-                   tmp_body    :: binary>>, :mx, _, orig_body) do
+  def parse_rdata(<<preference::unsigned-integer-size(16), tmp_body::binary>>, :mx, _, orig_body) do
     {_, _, name} = parse_name(tmp_body, orig_body, "")
+
     %{
       preference: preference,
-      name: name,
+      name: name
     }
   end
 
@@ -1479,105 +1618,127 @@ defmodule DNSpacket do
   # use cases involve single strings. Multiple string support could be added in
   # future versions if needed for SPF records exceeding 255 characters or similar use cases.
   @doc false
-  def parse_rdata(<<length :: unsigned-integer-size(8),
-                    txt    :: binary-size(length), _::binary>>, :txt, _, _) do
+  def parse_rdata(
+        <<length::unsigned-integer-size(8), txt::binary-size(length), _::binary>>,
+        :txt,
+        _,
+        _
+      ) do
     %{
-      txt: txt,
+      txt: txt
     }
   end
 
-
   @doc false
-  def parse_rdata(<<flag       :: unsigned-integer-size(8),
-                    tag_length :: unsigned-integer-size(8),
-                    tag        :: binary-size(tag_length),
-                    value      :: binary>>, :caa, _, _) do
+  def parse_rdata(
+        <<flag::unsigned-integer-size(8), tag_length::unsigned-integer-size(8),
+          tag::binary-size(tag_length), value::binary>>,
+        :caa,
+        _,
+        _
+      ) do
     %{
       flag: flag,
       tag: tag,
-      value: value,
+      value: value
     }
   end
 
   @doc false
-  def parse_rdata(<<priority :: unsigned-integer-size(16),
-                    weight   :: unsigned-integer-size(16),
-                    port     :: unsigned-integer-size(16),
-                    tmp_body :: binary>>, :srv, _, orig_body) do
+  def parse_rdata(
+        <<priority::unsigned-integer-size(16), weight::unsigned-integer-size(16),
+          port::unsigned-integer-size(16), tmp_body::binary>>,
+        :srv,
+        _,
+        orig_body
+      ) do
     {_, _, target} = parse_name(tmp_body, orig_body, "")
+
     %{
       priority: priority,
       weight: weight,
       port: port,
-      target: target,
+      target: target
     }
   end
 
   @doc false
-  def parse_rdata(<<order      :: unsigned-integer-size(16),
-                    preference :: unsigned-integer-size(16),
-                    flags_len  :: unsigned-integer-size(8),
-                    flags      :: binary-size(flags_len),
-                    services_len :: unsigned-integer-size(8),
-                    services   :: binary-size(services_len),
-                    regexp_len :: unsigned-integer-size(8),
-                    regexp     :: binary-size(regexp_len),
-                    tmp_body   :: binary>>, :naptr, _, orig_body) do
+  def parse_rdata(
+        <<order::unsigned-integer-size(16), preference::unsigned-integer-size(16),
+          flags_len::unsigned-integer-size(8), flags::binary-size(flags_len),
+          services_len::unsigned-integer-size(8), services::binary-size(services_len),
+          regexp_len::unsigned-integer-size(8), regexp::binary-size(regexp_len),
+          tmp_body::binary>>,
+        :naptr,
+        _,
+        orig_body
+      ) do
     {_, _, replacement} = parse_name(tmp_body, orig_body, "")
+
     %{
       order: order,
       preference: preference,
       flags: flags,
       services: services,
       regexp: regexp,
-      replacement: replacement,
+      replacement: replacement
     }
   end
 
   @doc false
   def parse_rdata(rdata, :dname, _, orig_body) do
     {_, _, target} = parse_name(rdata, orig_body, "")
+
     %{
-      target: target,
+      target: target
     }
   end
 
   @doc false
-  def parse_rdata(<<flags     :: unsigned-integer-size(16),
-                    protocol  :: unsigned-integer-size(8),
-                    algorithm :: unsigned-integer-size(8),
-                    public_key :: binary>>, :dnskey, _, _) do
+  def parse_rdata(
+        <<flags::unsigned-integer-size(16), protocol::unsigned-integer-size(8),
+          algorithm::unsigned-integer-size(8), public_key::binary>>,
+        :dnskey,
+        _,
+        _
+      ) do
     %{
       flags: flags,
       protocol: protocol,
       algorithm: algorithm,
-      public_key: public_key,
+      public_key: public_key
     }
   end
 
   @doc false
-  def parse_rdata(<<key_tag     :: unsigned-integer-size(16),
-                    algorithm   :: unsigned-integer-size(8),
-                    digest_type :: unsigned-integer-size(8),
-                    digest      :: binary>>, :ds, _, _) do
+  def parse_rdata(
+        <<key_tag::unsigned-integer-size(16), algorithm::unsigned-integer-size(8),
+          digest_type::unsigned-integer-size(8), digest::binary>>,
+        :ds,
+        _,
+        _
+      ) do
     %{
       key_tag: key_tag,
       algorithm: algorithm,
       digest_type: digest_type,
-      digest: digest,
+      digest: digest
     }
   end
 
   @doc false
-  def parse_rdata(<<type_covered         :: unsigned-integer-size(16),
-                    algorithm            :: unsigned-integer-size(8),
-                    labels               :: unsigned-integer-size(8),
-                    original_ttl         :: unsigned-integer-size(32),
-                    signature_expiration :: unsigned-integer-size(32),
-                    signature_inception  :: unsigned-integer-size(32),
-                    key_tag              :: unsigned-integer-size(16),
-                    tmp_body             :: binary>>, :rrsig, _, orig_body) do
+  def parse_rdata(
+        <<type_covered::unsigned-integer-size(16), algorithm::unsigned-integer-size(8),
+          labels::unsigned-integer-size(8), original_ttl::unsigned-integer-size(32),
+          signature_expiration::unsigned-integer-size(32),
+          signature_inception::unsigned-integer-size(32), key_tag::unsigned-integer-size(16),
+          tmp_body::binary>>,
+        :rrsig,
+        _,
+        orig_body
+      ) do
     {rest, _, signer_name} = parse_name(tmp_body, orig_body, "")
+
     %{
       type_covered: type_covered,
       algorithm: algorithm,
@@ -1587,7 +1748,7 @@ defmodule DNSpacket do
       signature_inception: signature_inception,
       key_tag: key_tag,
       signer_name: signer_name,
-      signature: rest,
+      signature: rest
     }
   end
 
@@ -1595,22 +1756,24 @@ defmodule DNSpacket do
   def parse_rdata(rdata, :nsec, _, orig_body) do
     {rest, _, next_domain_name} = parse_name(rdata, orig_body, "")
     type_bit_maps = parse_type_bitmap(rest)
+
     %{
       next_domain_name: next_domain_name,
-      type_bit_maps: type_bit_maps,
+      type_bit_maps: type_bit_maps
     }
   end
 
   @doc false
-  def parse_rdata(<<priority :: unsigned-integer-size(16),
-                    tmp_body :: binary>>, type, _, orig_body) when type in [:svcb, :https] do
+  def parse_rdata(<<priority::unsigned-integer-size(16), tmp_body::binary>>, type, _, orig_body)
+      when type in [:svcb, :https] do
     # SVCB/HTTPS support with Service Parameters
     {rest, _, target} = parse_name(tmp_body, orig_body, "")
     svc_params = parse_svc_params(rest)
+
     %{
       priority: priority,
       target: target,
-      svc_params: svc_params,
+      svc_params: svc_params
     }
   end
 
@@ -1625,21 +1788,26 @@ defmodule DNSpacket do
   end
 
   @doc false
-  def parse_opt_rr(result_map,
-    <<
-    code   :: 16,
-    length :: 16,
-    data   :: binary-size(length),
-    opt_rr :: binary,
-    >>) do
+  def parse_opt_rr(
+        result_map,
+        <<
+          code::16,
+          length::16,
+          data::binary-size(length),
+          opt_rr::binary
+        >>
+      ) do
     {key, value} = parse_opt_code(DNS.option(code), data)
-    updated_map = if key == :unknown do
-      # Handle unknown options by accumulating them in a list
-      unknown_options = Map.get(result_map, :unknown, [])
-      Map.put(result_map, :unknown, [value | unknown_options])
-    else
-      Map.put(result_map, key, value)
-    end
+
+    updated_map =
+      if key == :unknown do
+        # Handle unknown options by accumulating them in a list
+        unknown_options = Map.get(result_map, :unknown, [])
+        Map.put(result_map, :unknown, [value | unknown_options])
+      else
+        Map.put(result_map, key, value)
+      end
+
     parse_opt_rr(updated_map, opt_rr)
   end
 
@@ -1648,12 +1816,14 @@ defmodule DNSpacket do
     padded = pad_address(address, 4)
     <<a::8, b::8, c::8, d::8>> = padded
     masked_addr = apply_prefix_mask({a, b, c, d}, source, 32)
-    {:edns_client_subnet, %{
-      family: 1,
-      client_subnet: masked_addr,
-      source_prefix: source,
-      scope_prefix: scope
-    }}
+
+    {:edns_client_subnet,
+     %{
+       family: 1,
+       client_subnet: masked_addr,
+       source_prefix: source,
+       scope_prefix: scope
+     }}
   end
 
   # IPv6 EDNS Client Subnet - return structured data directly
@@ -1661,22 +1831,25 @@ defmodule DNSpacket do
     padded = pad_address(address, 16)
     <<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>> = padded
     masked_addr = apply_prefix_mask({a1, a2, a3, a4, a5, a6, a7, a8}, source, 128)
-    {:edns_client_subnet, %{
-      family: 2,
-      client_subnet: masked_addr,
-      source_prefix: source,
-      scope_prefix: scope
-    }}
+
+    {:edns_client_subnet,
+     %{
+       family: 2,
+       client_subnet: masked_addr,
+       source_prefix: source,
+       scope_prefix: scope
+     }}
   end
 
   # Unknown family EDNS Client Subnet - return structured data directly
   defp parse_opt_code(:edns_client_subnet, <<family::16, source::8, scope::8, address::binary>>) do
-    {:edns_client_subnet, %{
-      family: family,
-      client_subnet: address,
-      source_prefix: source,
-      scope_prefix: scope
-    }}
+    {:edns_client_subnet,
+     %{
+       family: family,
+       client_subnet: address,
+       source_prefix: source,
+       scope_prefix: scope
+     }}
   end
 
   defp parse_opt_code(:extended_dns_error, <<info_code::16, txt::binary>>) do
@@ -1684,15 +1857,19 @@ defmodule DNSpacket do
   end
 
   defp parse_opt_code(:cookie, cookie) do
-    parsed_cookie = case byte_size(cookie) do
-      8 ->
-        %{client: cookie, server: nil}
-      size when size >= 16 and size <= 40 ->
-        <<client::binary-size(8), server::binary>> = cookie
-        %{client: client, server: server}
-      _ ->
-        %{client: cookie, server: nil}
-    end
+    parsed_cookie =
+      case byte_size(cookie) do
+        8 ->
+          %{client: cookie, server: nil}
+
+        size when size >= 16 and size <= 40 ->
+          <<client::binary-size(8), server::binary>> = cookie
+          %{client: client, server: server}
+
+        _ ->
+          %{client: cookie, server: nil}
+      end
+
     {:cookie, parsed_cookie}
   end
 
@@ -1745,14 +1922,18 @@ defmodule DNSpacket do
     {:update_lease, %{lease: lease}}
   end
 
-  defp parse_opt_code(:llq, <<version::16, llq_opcode::16, error_code::16, llq_id::64, lease_life::32>>) do
-    {:llq, %{
-      version: version,
-      llq_opcode: llq_opcode,
-      error_code: error_code,
-      llq_id: llq_id,
-      lease_life: lease_life
-    }}
+  defp parse_opt_code(
+         :llq,
+         <<version::16, llq_opcode::16, error_code::16, llq_id::64, lease_life::32>>
+       ) do
+    {:llq,
+     %{
+       version: version,
+       llq_opcode: llq_opcode,
+       error_code: error_code,
+       llq_id: llq_id,
+       lease_life: lease_life
+     }}
   end
 
   defp parse_opt_code(:umbrella_ident, <<ident::32>>) do
@@ -1765,21 +1946,29 @@ defmodule DNSpacket do
 
   defp parse_opt_code(:nsid, nsid_data) do
     # NSID is typically ASCII text
-    parsed_nsid = case String.valid?(nsid_data) do
-      true -> nsid_data
-      false -> Base.encode16(nsid_data, case: :lower)
-    end
+    parsed_nsid =
+      case String.valid?(nsid_data) do
+        true -> nsid_data
+        false -> Base.encode16(nsid_data, case: :lower)
+      end
+
     {:nsid, parsed_nsid}
   end
 
   defp parse_opt_code(:edns_tcp_keepalive, data) do
-    parsed_keepalive = case byte_size(data) do
-      0 -> %{timeout: nil}
-      2 ->
-        <<timeout::16>> = data
-        %{timeout: timeout}
-      _ -> %{timeout: nil, raw_data: data}
-    end
+    parsed_keepalive =
+      case byte_size(data) do
+        0 ->
+          %{timeout: nil}
+
+        2 ->
+          <<timeout::16>> = data
+          %{timeout: timeout}
+
+        _ ->
+          %{timeout: nil, raw_data: data}
+      end
+
     {:edns_tcp_keepalive, parsed_keepalive}
   end
 
@@ -1791,18 +1980,19 @@ defmodule DNSpacket do
     {:unknown, %{code: code, data: data}}
   end
 
-
-
   @doc false
   def parse_edns_info(additional) do
     case Enum.find(additional, &match?(%{type: :opt}, &1)) do
       %{rdata: options} = opt_record when is_map(options) ->
         # Direct use - optimized path for Map format
         build_hybrid_edns_info_result(opt_record, options)
+
       %{rdata: []} = opt_record ->
         # Empty options case
         build_hybrid_edns_info_result(opt_record, %{})
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
 
@@ -1832,143 +2022,151 @@ defmodule DNSpacket do
   # credo:disable-for-this-file Credo.Check.Refactor.CyclomaticComplexity
   # credo:disable-for-this-file Credo.Check.Refactor.NestingDepth
   defp extract_and_flatten_options(options) do
-    {flattened, unknown} = Enum.reduce(options, {%{}, %{}}, fn {key, value}, {flat_acc, unknown_acc} ->
-      case key do
-        :edns_client_subnet when is_map(value) ->
-          # Flatten ECS options
-          flat_updates = %{
-            ecs_family: Map.get(value, :family),
-            ecs_subnet: Map.get(value, :client_subnet),
-            ecs_source_prefix: Map.get(value, :source_prefix),
-            ecs_scope_prefix: Map.get(value, :scope_prefix)
-          }
-          {Map.merge(flat_acc, flat_updates), unknown_acc}
+    {flattened, unknown} =
+      Enum.reduce(options, {%{}, %{}}, fn {key, value}, {flat_acc, unknown_acc} ->
+        case key do
+          :edns_client_subnet when is_map(value) ->
+            # Flatten ECS options
+            flat_updates = %{
+              ecs_family: Map.get(value, :family),
+              ecs_subnet: Map.get(value, :client_subnet),
+              ecs_source_prefix: Map.get(value, :source_prefix),
+              ecs_scope_prefix: Map.get(value, :scope_prefix)
+            }
 
-        :cookie when is_map(value) ->
-          # Flatten cookie options
-          flat_updates = %{
-            cookie_client: Map.get(value, :client),
-            cookie_server: Map.get(value, :server)
-          }
-          {Map.merge(flat_acc, flat_updates), unknown_acc}
+            {Map.merge(flat_acc, flat_updates), unknown_acc}
 
-        :nsid when is_binary(value) ->
-          # Flatten NSID
-          {Map.put(flat_acc, :nsid, value), unknown_acc}
+          :cookie when is_map(value) ->
+            # Flatten cookie options
+            flat_updates = %{
+              cookie_client: Map.get(value, :client),
+              cookie_server: Map.get(value, :server)
+            }
 
-        :extended_dns_error when is_map(value) ->
-          # Flatten Extended DNS Error
-          flat_updates = %{
-            extended_dns_error_info_code: Map.get(value, :info_code),
-            extended_dns_error_extra_text: Map.get(value, :extra_text)
-          }
-          {Map.merge(flat_acc, flat_updates), unknown_acc}
+            {Map.merge(flat_acc, flat_updates), unknown_acc}
 
-        :edns_tcp_keepalive when is_map(value) ->
-          # Flatten TCP Keepalive options
-          flat_updates = %{
-            edns_tcp_keepalive_timeout: Map.get(value, :timeout),
-            edns_tcp_keepalive_raw_data: Map.get(value, :raw_data)
-          }
-          {Map.merge(flat_acc, flat_updates), unknown_acc}
+          :nsid when is_binary(value) ->
+            # Flatten NSID
+            {Map.put(flat_acc, :nsid, value), unknown_acc}
 
-        :padding when is_map(value) ->
-          # Flatten Padding
-          {Map.put(flat_acc, :padding_length, Map.get(value, :length)), unknown_acc}
+          :extended_dns_error when is_map(value) ->
+            # Flatten Extended DNS Error
+            flat_updates = %{
+              extended_dns_error_info_code: Map.get(value, :info_code),
+              extended_dns_error_extra_text: Map.get(value, :extra_text)
+            }
 
-        :dau when is_map(value) ->
-          # Flatten DAU
-          {Map.put(flat_acc, :dau_algorithms, Map.get(value, :algorithms)), unknown_acc}
+            {Map.merge(flat_acc, flat_updates), unknown_acc}
 
-        :dhu when is_map(value) ->
-          # Flatten DHU
-          {Map.put(flat_acc, :dhu_algorithms, Map.get(value, :algorithms)), unknown_acc}
+          :edns_tcp_keepalive when is_map(value) ->
+            # Flatten TCP Keepalive options
+            flat_updates = %{
+              edns_tcp_keepalive_timeout: Map.get(value, :timeout),
+              edns_tcp_keepalive_raw_data: Map.get(value, :raw_data)
+            }
 
-        :n3u when is_map(value) ->
-          # Flatten N3U
-          {Map.put(flat_acc, :n3u_algorithms, Map.get(value, :algorithms)), unknown_acc}
+            {Map.merge(flat_acc, flat_updates), unknown_acc}
 
-        :edns_expire when is_map(value) ->
-          # Flatten EDNS Expire
-          {Map.put(flat_acc, :edns_expire_expire, Map.get(value, :expire)), unknown_acc}
+          :padding when is_map(value) ->
+            # Flatten Padding
+            {Map.put(flat_acc, :padding_length, Map.get(value, :length)), unknown_acc}
 
-        :chain when is_map(value) ->
-          # Flatten Chain
-          {Map.put(flat_acc, :chain_closest_encloser, Map.get(value, :closest_encloser)), unknown_acc}
+          :dau when is_map(value) ->
+            # Flatten DAU
+            {Map.put(flat_acc, :dau_algorithms, Map.get(value, :algorithms)), unknown_acc}
 
-        :edns_key_tag when is_map(value) ->
-          # Flatten EDNS Key Tag
-          {Map.put(flat_acc, :edns_key_tag_key_tags, Map.get(value, :key_tags)), unknown_acc}
+          :dhu when is_map(value) ->
+            # Flatten DHU
+            {Map.put(flat_acc, :dhu_algorithms, Map.get(value, :algorithms)), unknown_acc}
 
-        :edns_client_tag when is_map(value) ->
-          # Flatten EDNS Client Tag
-          {Map.put(flat_acc, :edns_client_tag_tag, Map.get(value, :tag)), unknown_acc}
+          :n3u when is_map(value) ->
+            # Flatten N3U
+            {Map.put(flat_acc, :n3u_algorithms, Map.get(value, :algorithms)), unknown_acc}
 
-        :edns_server_tag when is_map(value) ->
-          # Flatten EDNS Server Tag
-          {Map.put(flat_acc, :edns_server_tag_tag, Map.get(value, :tag)), unknown_acc}
+          :edns_expire when is_map(value) ->
+            # Flatten EDNS Expire
+            {Map.put(flat_acc, :edns_expire_expire, Map.get(value, :expire)), unknown_acc}
 
-        :report_channel when is_map(value) ->
-          # Flatten Report Channel
-          {Map.put(flat_acc, :report_channel_agent_domain, Map.get(value, :agent_domain)), unknown_acc}
+          :chain when is_map(value) ->
+            # Flatten Chain
+            {Map.put(flat_acc, :chain_closest_encloser, Map.get(value, :closest_encloser)),
+             unknown_acc}
 
-        :zoneversion when is_map(value) ->
-          # Flatten Zone Version
-          {Map.put(flat_acc, :zoneversion_version, Map.get(value, :version)), unknown_acc}
+          :edns_key_tag when is_map(value) ->
+            # Flatten EDNS Key Tag
+            {Map.put(flat_acc, :edns_key_tag_key_tags, Map.get(value, :key_tags)), unknown_acc}
 
-        :update_lease when is_map(value) ->
-          # Flatten Update Lease
-          {Map.put(flat_acc, :update_lease_lease, Map.get(value, :lease)), unknown_acc}
+          :edns_client_tag when is_map(value) ->
+            # Flatten EDNS Client Tag
+            {Map.put(flat_acc, :edns_client_tag_tag, Map.get(value, :tag)), unknown_acc}
 
-        :llq when is_map(value) ->
-          # Flatten LLQ
-          flat_updates = %{
-            llq_version: Map.get(value, :version),
-            llq_llq_opcode: Map.get(value, :llq_opcode),
-            llq_error_code: Map.get(value, :error_code),
-            llq_llq_id: Map.get(value, :llq_id),
-            llq_lease_life: Map.get(value, :lease_life)
-          }
-          {Map.merge(flat_acc, flat_updates), unknown_acc}
+          :edns_server_tag when is_map(value) ->
+            # Flatten EDNS Server Tag
+            {Map.put(flat_acc, :edns_server_tag_tag, Map.get(value, :tag)), unknown_acc}
 
-        :umbrella_ident when is_map(value) ->
-          # Flatten Umbrella Ident
-          {Map.put(flat_acc, :umbrella_ident_ident, Map.get(value, :ident)), unknown_acc}
+          :report_channel when is_map(value) ->
+            # Flatten Report Channel
+            {Map.put(flat_acc, :report_channel_agent_domain, Map.get(value, :agent_domain)),
+             unknown_acc}
 
-        :deviceid when is_map(value) ->
-          # Flatten Device ID
-          {Map.put(flat_acc, :deviceid_device_id, Map.get(value, :device_id)), unknown_acc}
+          :zoneversion when is_map(value) ->
+            # Flatten Zone Version
+            {Map.put(flat_acc, :zoneversion_version, Map.get(value, :version)), unknown_acc}
 
-        :unknown when is_list(value) ->
-          # Handle unknown options list
-          unknown_map = Enum.reduce(value, unknown_acc, fn
-            %{code: code, data: data}, acc -> Map.put(acc, code, data)
-            _, acc -> acc
-          end)
-          {flat_acc, unknown_map}
+          :update_lease when is_map(value) ->
+            # Flatten Update Lease
+            {Map.put(flat_acc, :update_lease_lease, Map.get(value, :lease)), unknown_acc}
 
-        _ ->
-          # All other options go to unknown
-          # credo:disable-for-next-line Credo.Check.Refactor.NestingDepth
-          case value do
-            %{code: code, data: data} ->
-              # credo:disable-for-next-line Credo.Check.Refactor.NestingDepth
-              {flat_acc, Map.put(unknown_acc, code, data)}
-            _ ->
-              {flat_acc, unknown_acc}
-          end
-      end
-    end)
+          :llq when is_map(value) ->
+            # Flatten LLQ
+            flat_updates = %{
+              llq_version: Map.get(value, :version),
+              llq_llq_opcode: Map.get(value, :llq_opcode),
+              llq_error_code: Map.get(value, :error_code),
+              llq_llq_id: Map.get(value, :llq_id),
+              llq_lease_life: Map.get(value, :lease_life)
+            }
+
+            {Map.merge(flat_acc, flat_updates), unknown_acc}
+
+          :umbrella_ident when is_map(value) ->
+            # Flatten Umbrella Ident
+            {Map.put(flat_acc, :umbrella_ident_ident, Map.get(value, :ident)), unknown_acc}
+
+          :deviceid when is_map(value) ->
+            # Flatten Device ID
+            {Map.put(flat_acc, :deviceid_device_id, Map.get(value, :device_id)), unknown_acc}
+
+          :unknown when is_list(value) ->
+            # Handle unknown options list
+            unknown_map =
+              Enum.reduce(value, unknown_acc, fn
+                %{code: code, data: data}, acc -> Map.put(acc, code, data)
+                _, acc -> acc
+              end)
+
+            {flat_acc, unknown_map}
+
+          _ ->
+            # All other options go to unknown
+            # credo:disable-for-next-line Credo.Check.Refactor.NestingDepth
+            case value do
+              %{code: code, data: data} ->
+                # credo:disable-for-next-line Credo.Check.Refactor.NestingDepth
+                {flat_acc, Map.put(unknown_acc, code, data)}
+
+              _ ->
+                {flat_acc, unknown_acc}
+            end
+        end
+      end)
 
     {flattened, unknown}
   end
 
-
-
-
-
   defp pad_address(addr_bytes, target_size) do
     current_size = byte_size(addr_bytes)
+
     if current_size < target_size do
       addr_bytes <> <<0::size((target_size - current_size) * 8)>>
     else
@@ -1994,20 +2192,22 @@ defmodule DNSpacket do
     addr_list = Tuple.to_list(addr_tuple)
     element_bits = div(max_bits, length(addr_list))
 
-    {masked_list, _} = Enum.map_reduce(addr_list, prefix_len, fn element, remaining_bits ->
-      cond do
-        remaining_bits <= 0 ->
-          {0, 0}
-        min(remaining_bits, element_bits) >= element_bits ->
-          {element, remaining_bits - element_bits}
-        true ->
-          bits_to_keep = min(remaining_bits, element_bits)
-          mask = bnot((1 <<< (element_bits - bits_to_keep)) - 1)
-          {element &&& mask, 0}
-      end
-    end)
+    {masked_list, _} =
+      Enum.map_reduce(addr_list, prefix_len, fn element, remaining_bits ->
+        cond do
+          remaining_bits <= 0 ->
+            {0, 0}
+
+          min(remaining_bits, element_bits) >= element_bits ->
+            {element, remaining_bits - element_bits}
+
+          true ->
+            bits_to_keep = min(remaining_bits, element_bits)
+            mask = bnot((1 <<< (element_bits - bits_to_keep)) - 1)
+            {element &&& mask, 0}
+        end
+      end)
 
     List.to_tuple(masked_list)
   end
-
 end

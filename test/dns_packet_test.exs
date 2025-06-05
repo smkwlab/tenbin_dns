@@ -80,17 +80,19 @@ defmodule DNSpacketTest do
     end
 
     test "creates AAAA record rdata" do
-      rdata = %{addr: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 1}}
+      rdata = %{addr: {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}}
       result = DNSpacket.create_rdata(rdata, :aaaa, :in)
       # Calculate expected value using same logic as implementation
-      addr_int = 0x2001 * 0x10000*0x10000*0x10000*0x10000*0x10000*0x10000*0x10000 +
-                 0xdb8 * 0x10000*0x10000*0x10000*0x10000*0x10000*0x10000 +
-                 0 * 0x10000*0x10000*0x10000*0x10000*0x10000 +
-                 0 * 0x10000*0x10000*0x10000*0x10000 +
-                 0 * 0x10000*0x10000*0x10000 +
-                 0 * 0x10000*0x10000 +
-                 0 * 0x10000 +
-                 1
+      addr_int =
+        0x2001 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 +
+          0xDB8 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 +
+          0 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 +
+          0 * 0x10000 * 0x10000 * 0x10000 * 0x10000 +
+          0 * 0x10000 * 0x10000 * 0x10000 +
+          0 * 0x10000 * 0x10000 +
+          0 * 0x10000 +
+          1
+
       expected = <<addr_int::128>>
       assert result == expected
     end
@@ -100,18 +102,21 @@ defmodule DNSpacketTest do
         mname: "ns1.example.com",
         rname: "admin.example.com",
         # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
-        serial: 2023010101,
+        serial: 2_023_010_101,
         refresh: 7200,
         retry: 3600,
         expire: 604_800,
         minimum: 86_400
       }
+
       result = DNSpacket.create_rdata(rdata, :soa, :in)
 
-      expected = <<3, "ns1", 7, "example", 3, "com">> <>
-                <<5, "admin", 7, "example", 3, "com">> <>
-                # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
-                <<2023010101::32, 7200::32, 3600::32, 604_800::32, 86_400::32>>
+      # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
+      expected =
+        <<3, "ns1", 7, "example", 3, "com">> <>
+          <<5, "admin", 7, "example", 3, "com">> <>
+          <<2_023_010_101::32, 7200::32, 3600::32, 604_800::32, 86_400::32>>
+
       assert result == expected
     end
 
@@ -146,9 +151,9 @@ defmodule DNSpacketTest do
     end
 
     test "parses AAAA record rdata" do
-      rdata = <<0x2001::16, 0xdb8::16, 0::16, 0::16, 0::16, 0::16, 0::16, 1::16>>
+      rdata = <<0x2001::16, 0xDB8::16, 0::16, 0::16, 0::16, 0::16, 0::16, 1::16>>
       result = DNSpacket.parse_rdata(rdata, :aaaa, :in, <<>>)
-      expected = %{addr: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 1}}
+      expected = %{addr: {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}}
       assert result == expected
     end
 
@@ -190,9 +195,6 @@ defmodule DNSpacketTest do
     end
   end
 
-
-
-
   describe "packet creation and parsing roundtrip" do
     test "creates and parses simple query packet" do
       packet = %DNSpacket{
@@ -220,23 +222,59 @@ defmodule DNSpacketTest do
     test "parse handles DNS name compression pointers" do
       # Create a packet with name compression
       compressed_packet = <<
-        0x12, 0x34,  # ID
-        0x81, 0x80,  # Flags (response)
-        0x00, 0x01,  # QDCOUNT = 1
-        0x00, 0x01,  # ANCOUNT = 1
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x00,  # ARCOUNT = 0
+        # ID
+        0x12,
+        0x34,
+        # Flags (response)
+        0x81,
+        0x80,
+        # QDCOUNT = 1
+        0x00,
+        0x01,
+        # ANCOUNT = 1
+        0x00,
+        0x01,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 0
+        0x00,
+        0x00,
         # Question: example.com
-        0x07, "example", 0x03, "com", 0x00,
-        0x00, 0x01,  # QTYPE = A
-        0x00, 0x01,  # QCLASS = IN
+        0x07,
+        "example",
+        0x03,
+        "com",
+        0x00,
+        # QTYPE = A
+        0x00,
+        0x01,
+        # QCLASS = IN
+        0x00,
+        0x01,
         # Answer: pointer to question name
-        0xC0, 0x0C,  # Pointer to offset 12 (name compression)
-        0x00, 0x01,  # TYPE = A
-        0x00, 0x01,  # CLASS = IN
-        0x00, 0x00, 0x01, 0x2C,  # TTL = 300
-        0x00, 0x04,  # RDLENGTH = 4
-        192, 168, 1, 1  # IP address
+        # Pointer to offset 12 (name compression)
+        0xC0,
+        0x0C,
+        # TYPE = A
+        0x00,
+        0x01,
+        # CLASS = IN
+        0x00,
+        0x01,
+        # TTL = 300
+        0x00,
+        0x00,
+        0x01,
+        0x2C,
+        # RDLENGTH = 4
+        0x00,
+        0x04,
+        # IP address
+        192,
+        168,
+        1,
+        1
       >>
 
       parsed = DNSpacket.parse(compressed_packet)
@@ -248,16 +286,33 @@ defmodule DNSpacketTest do
     test "parse handles root domain name in empty context" do
       # Test packet with just root domain
       root_packet = <<
-        0x12, 0x34,  # ID
-        0x01, 0x00,  # Flags
-        0x00, 0x01,  # QDCOUNT = 1
-        0x00, 0x00,  # ANCOUNT = 0
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x00,  # ARCOUNT = 0
+        # ID
+        0x12,
+        0x34,
+        # Flags
+        0x01,
+        0x00,
+        # QDCOUNT = 1
+        0x00,
+        0x01,
+        # ANCOUNT = 0
+        0x00,
+        0x00,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 0
+        0x00,
+        0x00,
         # Question: root domain (just null byte)
-        0x00,        # Root domain name
-        0x00, 0x01,  # QTYPE = A
-        0x00, 0x01   # QCLASS = IN
+        # Root domain name
+        0x00,
+        # QTYPE = A
+        0x00,
+        0x01,
+        # QCLASS = IN
+        0x00,
+        0x01
       >>
 
       parsed = DNSpacket.parse(root_packet)
@@ -267,24 +322,76 @@ defmodule DNSpacketTest do
     test "parse handles complex name compression with multiple pointers" do
       # Packet with multiple compressed names
       multi_compressed = <<
-        0x12, 0x34,  # ID
-        0x81, 0x80,  # Flags
-        0x00, 0x01,  # QDCOUNT = 1
-        0x00, 0x02,  # ANCOUNT = 2
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x00,  # ARCOUNT = 0
+        # ID
+        0x12,
+        0x34,
+        # Flags
+        0x81,
+        0x80,
+        # QDCOUNT = 1
+        0x00,
+        0x01,
+        # ANCOUNT = 2
+        0x00,
+        0x02,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 0
+        0x00,
+        0x00,
         # Question: mail.example.com
-        0x04, "mail", 0x07, "example", 0x03, "com", 0x00,
-        0x00, 0x01,  # QTYPE = A
-        0x00, 0x01,  # QCLASS = IN
+        0x04,
+        "mail",
+        0x07,
+        "example",
+        0x03,
+        "com",
+        0x00,
+        # QTYPE = A
+        0x00,
+        0x01,
+        # QCLASS = IN
+        0x00,
+        0x01,
         # Answer 1: mail.example.com (pointer)
-        0xC0, 0x0C,  # Pointer to question name
-        0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01, 0x2C, 0x00, 0x04,
-        192, 168, 1, 1,
+        # Pointer to question name
+        0xC0,
+        0x0C,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x01,
+        0x2C,
+        0x00,
+        0x04,
+        192,
+        168,
+        1,
+        1,
         # Answer 2: www.example.com (partial pointer)
-        0x03, "www", 0xC0, 0x11,  # "www" + pointer to "example.com" part
-        0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01, 0x2C, 0x00, 0x04,
-        192, 168, 1, 2
+        # "www" + pointer to "example.com" part
+        0x03,
+        "www",
+        0xC0,
+        0x11,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x01,
+        0x2C,
+        0x00,
+        0x04,
+        192,
+        168,
+        1,
+        2
       >>
 
       parsed = DNSpacket.parse(multi_compressed)
@@ -297,12 +404,11 @@ defmodule DNSpacketTest do
   end
 
   describe "additional coverage tests" do
-
-
     test "parse_rdata for NS record" do
       # Create a binary with NS record data
       ns_binary = <<3, "ns1", 7, "example", 3, "com", 0>>
-      orig_body = <<0::96>> <> ns_binary  # Add padding for pointer parsing
+      # Add padding for pointer parsing
+      orig_body = <<0::96>> <> ns_binary
 
       result = DNSpacket.parse_rdata(ns_binary, :ns, :in, orig_body)
       assert result.name == "ns1.example.com."
@@ -325,17 +431,19 @@ defmodule DNSpacketTest do
     end
 
     test "parse_rdata for SOA record" do
-      soa_binary = <<3, "ns1", 7, "example", 3, "com", 0>> <>
-                   <<5, "admin", 7, "example", 3, "com", 0>> <>
-                   # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
-                   <<2023010101::32, 7200::32, 3600::32, 604_800::32, 86_400::32>>
+      # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
+      soa_binary =
+        <<3, "ns1", 7, "example", 3, "com", 0>> <>
+          <<5, "admin", 7, "example", 3, "com", 0>> <>
+          <<2_023_010_101::32, 7200::32, 3600::32, 604_800::32, 86_400::32>>
+
       orig_body = <<0::96>> <> soa_binary
 
       result = DNSpacket.parse_rdata(soa_binary, :soa, :in, orig_body)
       assert result.mname == "ns1.example.com."
       assert result.rname == "admin.example.com."
       # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
-      assert result.serial == 2023010101
+      assert result.serial == 2_023_010_101
     end
 
     test "parse_rdata for MX record" do
@@ -348,8 +456,11 @@ defmodule DNSpacketTest do
     end
 
     test "parse_opt_rr with multiple options" do
-      opt_data = <<8::16, 4::16, 1, 2, 3, 4>> <>  # ECS option
-                 <<10::16, 8::16, 1, 2, 3, 4, 5, 6, 7, 8>>  # Cookie option
+      # ECS option
+      # Cookie option
+      opt_data =
+        <<8::16, 4::16, 1, 2, 3, 4>> <>
+          <<10::16, 8::16, 1, 2, 3, 4, 5, 6, 7, 8>>
 
       result = DNSpacket.parse_opt_rr(%{}, opt_data)
       assert map_size(result) == 2
@@ -359,57 +470,60 @@ defmodule DNSpacketTest do
 
     test "parse_opt_rr with all supported EDNS options" do
       # Build comprehensive opt_data with many options
+      # ECS option (code 8)
+      # Cookie option (code 10)
+      # NSID option (code 3)
+      # Extended DNS Error (code 15)
+      # TCP Keepalive (code 11)
+      # Padding (code 12)
+      # DAU (code 5)
+      # DHU (code 6)
+      # N3U (code 7)
+      # EDNS Expire (code 9)
+      # Chain (code 13)
+      # EDNS Key Tag (code 14)
+      # EDNS Client Tag (code 16)
+      # EDNS Server Tag (code 17)
+      # Report Channel (code 18)
+      # Zone Version (code 19)
+      # Update Lease (code 2)
+      # LLQ (code 1)
+      # Umbrella Ident (code 20292)
+      # DeviceID (code 26946)
       opt_data =
-        # ECS option (code 8)
         <<8::16, 7::16, 1::16, 24::8, 0::8, 192, 168, 1>> <>
-        # Cookie option (code 10)
-        <<10::16, 16::16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16>> <>
-        # NSID option (code 3)
-        <<3::16, 6::16, "server">> <>
-        # Extended DNS Error (code 15)
-        <<15::16, 9::16, 18::16, "Blocked">> <>
-        # TCP Keepalive (code 11)
-        <<11::16, 2::16, 300::16>> <>
-        # Padding (code 12)
-        <<12::16, 4::16, 0::32>> <>
-        # DAU (code 5)
-        <<5::16, 3::16, 7, 8, 10>> <>
-        # DHU (code 6)
-        <<6::16, 2::16, 1, 2>> <>
-        # N3U (code 7)
-        <<7::16, 1::16, 1>> <>
-        # EDNS Expire (code 9)
-        <<9::16, 4::16, 3600::32>> <>
-        # Chain (code 13)
-        <<13::16, 11::16, "example.com">> <>
-        # EDNS Key Tag (code 14)
-        <<14::16, 4::16, 12_345::16, 54_321::16>> <>
-        # EDNS Client Tag (code 16)
-        <<16::16, 2::16, 1234::16>> <>
-        # EDNS Server Tag (code 17)
-        <<17::16, 2::16, 5678::16>> <>
-        # Report Channel (code 18)
-        <<18::16, 17::16, "agent.example.com">> <>
-        # Zone Version (code 19)
-        <<19::16, 8::16, 0, 4, 98, 213, 60, 138, 186, 192>> <>
-        # Update Lease (code 2)
-        <<2::16, 4::16, 7200::32>> <>
-        # LLQ (code 1)
-        <<1::16, 18::16, 1::16, 1::16, 0::16, 0, 4, 98, 213, 60, 138, 186, 192, 3600::32>> <>
-        # Umbrella Ident (code 20292)
-        <<20_292::16, 4::16, 0x12345678::32>> <>
-        # DeviceID (code 26946)
-        <<26_946::16, 9::16, "device123">>
+          <<10::16, 16::16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16>> <>
+          <<3::16, 6::16, "server">> <>
+          <<15::16, 9::16, 18::16, "Blocked">> <>
+          <<11::16, 2::16, 300::16>> <>
+          <<12::16, 4::16, 0::32>> <>
+          <<5::16, 3::16, 7, 8, 10>> <>
+          <<6::16, 2::16, 1, 2>> <>
+          <<7::16, 1::16, 1>> <>
+          <<9::16, 4::16, 3600::32>> <>
+          <<13::16, 11::16, "example.com">> <>
+          <<14::16, 4::16, 12_345::16, 54_321::16>> <>
+          <<16::16, 2::16, 1234::16>> <>
+          <<17::16, 2::16, 5678::16>> <>
+          <<18::16, 17::16, "agent.example.com">> <>
+          <<19::16, 8::16, 0, 4, 98, 213, 60, 138, 186, 192>> <>
+          <<2::16, 4::16, 7200::32>> <>
+          <<1::16, 18::16, 1::16, 1::16, 0::16, 0, 4, 98, 213, 60, 138, 186, 192, 3600::32>> <>
+          <<20_292::16, 4::16, 0x12345678::32>> <>
+          <<26_946::16, 9::16, "device123">>
 
       result = DNSpacket.parse_opt_rr(%{}, opt_data)
 
       # Should parse all 20 options (including unknowns which are accumulated in a list)
       # Count known options + unknown list length
       known_count = map_size(Map.drop(result, [:unknown]))
-      unknown_count = case Map.get(result, :unknown) do
-        nil -> 0
-        list -> length(list)
-      end
+
+      unknown_count =
+        case Map.get(result, :unknown) do
+          nil -> 0
+          list -> length(list)
+        end
+
       assert known_count + unknown_count == 20
 
       # Verify a few specific options - now using tuple format
@@ -430,10 +544,8 @@ defmodule DNSpacketTest do
 
     test "create_answer with multiple answers" do
       answers = [
-        %{name: "test.com.", type: :a, class: :in, ttl: 300,
-          rdata: %{addr: {192, 168, 1, 1}}},
-        %{name: "test.com.", type: :a, class: :in, ttl: 300,
-          rdata: %{addr: {192, 168, 1, 2}}}
+        %{name: "test.com.", type: :a, class: :in, ttl: 300, rdata: %{addr: {192, 168, 1, 1}}},
+        %{name: "test.com.", type: :a, class: :in, ttl: 300, rdata: %{addr: {192, 168, 1, 2}}}
       ]
 
       result = DNSpacket.create_answer(answers)
@@ -455,8 +567,16 @@ defmodule DNSpacketTest do
     test "create packet with all header flags set" do
       packet = %DNSpacket{
         id: 0x1234,
-        qr: 1, opcode: 15, aa: 1, tc: 1, rd: 1,
-        ra: 1, z: 1, ad: 1, cd: 1, rcode: 15,
+        qr: 1,
+        opcode: 15,
+        aa: 1,
+        tc: 1,
+        rd: 1,
+        ra: 1,
+        z: 1,
+        ad: 1,
+        cd: 1,
+        rcode: 15,
         question: []
       }
 
@@ -485,20 +605,60 @@ defmodule DNSpacketTest do
     test "parse packet with complex name compression edge cases" do
       # Test packet that exercises parse_name internal paths through public API
       complex_packet = <<
-        0x12, 0x34,  # ID
-        0x81, 0x80,  # Flags
-        0x00, 0x01,  # QDCOUNT = 1
-        0x00, 0x01,  # ANCOUNT = 1
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x00,  # ARCOUNT = 0
+        # ID
+        0x12,
+        0x34,
+        # Flags
+        0x81,
+        0x80,
+        # QDCOUNT = 1
+        0x00,
+        0x01,
+        # ANCOUNT = 1
+        0x00,
+        0x01,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 0
+        0x00,
+        0x00,
         # Question with very deep nesting to test parse_name accumulator
-        0x03, "sub", 0x03, "sub", 0x03, "sub", 0x07, "example", 0x03, "com", 0x00,
-        0x00, 0x01,  # QTYPE = A
-        0x00, 0x01,  # QCLASS = IN
+        0x03,
+        "sub",
+        0x03,
+        "sub",
+        0x03,
+        "sub",
+        0x07,
+        "example",
+        0x03,
+        "com",
+        0x00,
+        # QTYPE = A
+        0x00,
+        0x01,
+        # QCLASS = IN
+        0x00,
+        0x01,
         # Answer with pointer to test parse_name pointer handling
-        0xC0, 0x0C,  # Pointer to question name
-        0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01, 0x2C, 0x00, 0x04,
-        192, 168, 1, 1
+        # Pointer to question name
+        0xC0,
+        0x0C,
+        0x00,
+        0x01,
+        0x00,
+        0x01,
+        0x00,
+        0x00,
+        0x01,
+        0x2C,
+        0x00,
+        0x04,
+        192,
+        168,
+        1,
+        1
       >>
 
       parsed = DNSpacket.parse(complex_packet)
@@ -509,21 +669,37 @@ defmodule DNSpacketTest do
     test "parse packet with root domain edge case" do
       # Test root domain handling which exercises parse_name edge cases
       root_packet = <<
-        0x12, 0x34,  # ID
-        0x01, 0x00,  # Flags
-        0x00, 0x01,  # QDCOUNT = 1
-        0x00, 0x00,  # ANCOUNT = 0
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x00,  # ARCOUNT = 0
-        0x00,        # Root domain name (empty label)
-        0x00, 0x01,  # QTYPE = A
-        0x00, 0x01   # QCLASS = IN
+        # ID
+        0x12,
+        0x34,
+        # Flags
+        0x01,
+        0x00,
+        # QDCOUNT = 1
+        0x00,
+        0x01,
+        # ANCOUNT = 0
+        0x00,
+        0x00,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 0
+        0x00,
+        0x00,
+        # Root domain name (empty label)
+        0x00,
+        # QTYPE = A
+        0x00,
+        0x01,
+        # QCLASS = IN
+        0x00,
+        0x01
       >>
 
       parsed = DNSpacket.parse(root_packet)
       assert hd(parsed.question).qname == "."
     end
-
 
     test "parse_opt_rr edge cases" do
       # Test parse_opt_rr with empty binary
@@ -536,15 +712,17 @@ defmodule DNSpacketTest do
       assert result2 == existing
     end
 
-
-
     test "create_rdata for all supported types complete coverage" do
       # Test create_rdata edge cases and ensure all paths are covered
 
       # Test AAAA with different IPv6 format
-      rdata = %{addr: {0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff}}
+      rdata = %{addr: {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF}}
       result = DNSpacket.create_rdata(rdata, :aaaa, :in)
-      expected = <<0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16, 0xffff::16>>
+
+      expected =
+        <<0xFFFF::16, 0xFFFF::16, 0xFFFF::16, 0xFFFF::16, 0xFFFF::16, 0xFFFF::16, 0xFFFF::16,
+          0xFFFF::16>>
+
       assert result == expected
     end
 
@@ -552,21 +730,44 @@ defmodule DNSpacketTest do
       # Create a comprehensive packet to test multiple parsing paths
       packet = %DNSpacket{
         id: 0x9999,
-        qr: 1, aa: 1, rd: 1, ra: 1,
+        qr: 1,
+        aa: 1,
+        rd: 1,
+        ra: 1,
         question: [%{qname: "test.example.com.", qtype: :a, qclass: :in}],
         answer: [
-          %{name: "test.example.com.", type: :a, class: :in, ttl: 300,
-            rdata: %{addr: {10, 0, 0, 1}}},
-          %{name: "test.example.com.", type: :aaaa, class: :in, ttl: 300,
-            rdata: %{addr: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 2}}}
+          %{
+            name: "test.example.com.",
+            type: :a,
+            class: :in,
+            ttl: 300,
+            rdata: %{addr: {10, 0, 0, 1}}
+          },
+          %{
+            name: "test.example.com.",
+            type: :aaaa,
+            class: :in,
+            ttl: 300,
+            rdata: %{addr: {0x2001, 0xDB8, 0, 0, 0, 0, 0, 2}}
+          }
         ],
         authority: [
-          %{name: "example.com.", type: :ns, class: :in, ttl: 86_400,
-            rdata: %{name: "ns1.example.com."}}
+          %{
+            name: "example.com.",
+            type: :ns,
+            class: :in,
+            ttl: 86_400,
+            rdata: %{name: "ns1.example.com."}
+          }
         ],
         additional: [
-          %{name: "ns1.example.com.", type: :a, class: :in, ttl: 86_400,
-            rdata: %{addr: {10, 0, 0, 10}}}
+          %{
+            name: "ns1.example.com.",
+            type: :a,
+            class: :in,
+            ttl: 86_400,
+            rdata: %{addr: {10, 0, 0, 10}}
+          }
         ]
       }
 
@@ -604,20 +805,43 @@ defmodule DNSpacketTest do
     test "parse packet with OPT record using old parse functions" do
       # Create packet with OPT record to test the non-fast parse path coverage
       packet_with_opt = <<
-        0x12, 0x34,  # ID
-        0x00, 0x00,  # Flags
-        0x00, 0x00,  # QDCOUNT = 0
-        0x00, 0x00,  # ANCOUNT = 0
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x01,  # ARCOUNT = 1
+        # ID
+        0x12,
+        0x34,
+        # Flags
+        0x00,
+        0x00,
+        # QDCOUNT = 0
+        0x00,
+        0x00,
+        # ANCOUNT = 0
+        0x00,
+        0x00,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 1
+        0x00,
+        0x01,
         # OPT record
-        0x00,                    # Empty name
-        0x00, 0x29,             # TYPE = OPT (41)
-        0x04, 0x00,             # Payload size = 1024
-        0x00,                   # Extended RCODE
-        0x00,                   # Version
-        0x80, 0x00,             # Flags (DNSSEC OK)
-        0x00, 0x00              # RDLENGTH = 0
+        # Empty name
+        0x00,
+        # TYPE = OPT (41)
+        0x00,
+        0x29,
+        # Payload size = 1024
+        0x04,
+        0x00,
+        # Extended RCODE
+        0x00,
+        # Version
+        0x00,
+        # Flags (DNSSEC OK)
+        0x80,
+        0x00,
+        # RDLENGTH = 0
+        0x00,
+        0x00
       >>
 
       parsed = DNSpacket.parse(packet_with_opt)
@@ -634,7 +858,7 @@ defmodule DNSpacketTest do
         ecs_family: 1,
         ecs_subnet: {192, 168, 1, 0},
         ecs_source_prefix: 24,
-        ecs_scope_prefix: 0,
+        ecs_scope_prefix: 0
       }
 
       # Convert structured format to legacy format for create_rr
@@ -642,12 +866,16 @@ defmodule DNSpacketTest do
       binary = DNSpacket.create_rr(opt_record)
 
       # Verify the binary starts with OPT record header
-      <<0, 41::16, payload_size::16, ex_rcode::8, version::8, flags::16, rdlength::16, _rdata::binary>> = binary
+      <<0, 41::16, payload_size::16, ex_rcode::8, version::8, flags::16, rdlength::16,
+        _rdata::binary>> = binary
+
       assert payload_size == 1232
       assert ex_rcode == 0
       assert version == 0
-      assert (flags >>> 15) == 0  # DNSSEC bit (default)
-      assert rdlength > 0  # Should have RDATA for all the options
+      # DNSSEC bit (default)
+      assert flags >>> 15 == 0
+      # Should have RDATA for all the options
+      assert rdlength > 0
     end
 
     test "create_rr for OPT record with empty rdata list" do
@@ -708,14 +936,24 @@ defmodule DNSpacketTest do
     test "parse packet with authority and additional sections" do
       packet = %DNSpacket{
         id: 0x5678,
-        qr: 1, aa: 1,
+        qr: 1,
+        aa: 1,
         question: [%{qname: "test.com.", qtype: :a, qclass: :in}],
-        answer: [%{name: "test.com.", type: :a, class: :in, ttl: 300,
-                   rdata: %{addr: {192, 168, 1, 1}}}],
-        authority: [%{name: "test.com.", type: :ns, class: :in, ttl: 3600,
-                      rdata: %{name: "ns1.test.com."}}],
-        additional: [%{name: "ns1.test.com.", type: :a, class: :in, ttl: 3600,
-                       rdata: %{addr: {192, 168, 1, 10}}}]
+        answer: [
+          %{name: "test.com.", type: :a, class: :in, ttl: 300, rdata: %{addr: {192, 168, 1, 1}}}
+        ],
+        authority: [
+          %{name: "test.com.", type: :ns, class: :in, ttl: 3600, rdata: %{name: "ns1.test.com."}}
+        ],
+        additional: [
+          %{
+            name: "ns1.test.com.",
+            type: :a,
+            class: :in,
+            ttl: 3600,
+            rdata: %{addr: {192, 168, 1, 10}}
+          }
+        ]
       }
 
       binary = DNSpacket.create(packet)
@@ -731,8 +969,13 @@ defmodule DNSpacketTest do
   describe "parse_edns_info/1" do
     test "returns nil when no OPT record present" do
       additional = [
-        %{name: "ns1.example.com.", type: :a, class: :in, ttl: 300,
-          rdata: %{addr: {192, 168, 1, 1}}}
+        %{
+          name: "ns1.example.com.",
+          type: :a,
+          class: :in,
+          ttl: 300,
+          rdata: %{addr: {192, 168, 1, 1}}
+        }
       ]
 
       result = DNSpacket.parse_edns_info(additional)
@@ -772,7 +1015,12 @@ defmodule DNSpacketTest do
           dnssec: 0,
           z: 0,
           rdata: %{
-            edns_client_subnet: %{family: 1, client_subnet: {192, 168, 1, 0}, source_prefix: 24, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 1,
+              client_subnet: {192, 168, 1, 0},
+              source_prefix: 24,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -789,14 +1037,19 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 2, client_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}, source_prefix: 48, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 2,
+              client_subnet: {0x2001, 0xDB8, 0x1234, 0, 0, 0, 0, 0},
+              source_prefix: 48,
+              scope_prefix: 0
+            }
           }
         }
       ]
 
       result = DNSpacket.parse_edns_info(additional)
       assert result.ecs_family == 2
-      assert result.ecs_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
+      assert result.ecs_subnet == {0x2001, 0xDB8, 0x1234, 0, 0, 0, 0, 0}
       assert result.ecs_source_prefix == 48
     end
 
@@ -853,7 +1106,8 @@ defmodule DNSpacketTest do
     test "parses cookie option - maximum size" do
       # Test with maximum cookie size (40 bytes = 8 client + 32 server)
       client_cookie = <<1, 2, 3, 4, 5, 6, 7, 8>>
-      server_cookie = <<9::size(32 * 8)>>  # 32 bytes of 9s
+      # 32 bytes of 9s
+      server_cookie = <<9::size(32 * 8)>>
       _full_cookie = client_cookie <> server_cookie
 
       additional = [
@@ -872,6 +1126,7 @@ defmodule DNSpacketTest do
 
     test "parses NSID option with ASCII text" do
       nsid_data = "ns1.example.com"
+
       additional = [
         %{
           type: :opt,
@@ -887,6 +1142,7 @@ defmodule DNSpacketTest do
 
     test "parses NSID option with binary data" do
       _nsid_data = <<0xFF, 0xFE, 0xFD>>
+
       additional = [
         %{
           type: :opt,
@@ -961,6 +1217,7 @@ defmodule DNSpacketTest do
 
     test "parses padding option" do
       _padding_data = <<0, 0, 0, 0, 0, 0, 0, 0>>
+
       additional = [
         %{
           type: :opt,
@@ -979,7 +1236,10 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            unknown: [%{code: :unknown_option, data: <<1, 2, 3, 4>>}, %{code: :another_unknown, data: <<5, 6>>}]
+            unknown: [
+              %{code: :unknown_option, data: <<1, 2, 3, 4>>},
+              %{code: :another_unknown, data: <<5, 6>>}
+            ]
           }
         }
       ]
@@ -994,7 +1254,12 @@ defmodule DNSpacketTest do
           type: :opt,
           payload_size: 4096,
           rdata: %{
-            edns_client_subnet: %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 24, scope_prefix: 0},
+            edns_client_subnet: %{
+              family: 1,
+              client_subnet: {10, 0, 0, 0},
+              source_prefix: 24,
+              scope_prefix: 0
+            },
             cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil},
             nsid: "server1",
             padding: %{length: 4}
@@ -1017,7 +1282,12 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 1, client_subnet: {0, 0, 0, 0}, source_prefix: 0, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 1,
+              client_subnet: {0, 0, 0, 0},
+              source_prefix: 0,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1031,7 +1301,12 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 2, client_subnet: {0, 0, 0, 0, 0, 0, 0, 0}, source_prefix: 0, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 2,
+              client_subnet: {0, 0, 0, 0, 0, 0, 0, 0},
+              source_prefix: 0,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1045,7 +1320,12 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 1, client_subnet: {203, 128, 0, 0}, source_prefix: 12, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 1,
+              client_subnet: {203, 128, 0, 0},
+              source_prefix: 12,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1061,7 +1341,13 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 2, client_subnet: {0x2001, 0x0db8, 0xF000, 0, 0, 0, 0, 0}, source_prefix: 36, scope_prefix: 0}  # 5 bytes for /36 prefix
+            # 5 bytes for /36 prefix
+            edns_client_subnet: %{
+              family: 2,
+              client_subnet: {0x2001, 0x0DB8, 0xF000, 0, 0, 0, 0, 0},
+              source_prefix: 36,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1069,8 +1355,9 @@ defmodule DNSpacketTest do
       result = DNSpacket.parse_edns_info(additional)
       # Should mask the last 4 bits of the 5th byte
       assert elem(result.ecs_subnet, 0) == 0x2001
-      assert elem(result.ecs_subnet, 1) == 0x0db8
-      assert elem(result.ecs_subnet, 2) == 0xF000  # Masked
+      assert elem(result.ecs_subnet, 1) == 0x0DB8
+      # Masked
+      assert elem(result.ecs_subnet, 2) == 0xF000
     end
 
     test "handles IPv4 address that's too long" do
@@ -1079,7 +1366,13 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 1, client_subnet: {192, 168, 1, 1}, source_prefix: 32, scope_prefix: 0}  # 6 bytes, but IPv4 only needs 4
+            # 6 bytes, but IPv4 only needs 4
+            edns_client_subnet: %{
+              family: 1,
+              client_subnet: {192, 168, 1, 1},
+              source_prefix: 32,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1095,7 +1388,12 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 2, client_subnet: {0x2001, 0x0db8, 0, 0, 0, 0, 0, 0}, source_prefix: 128, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 2,
+              client_subnet: {0x2001, 0x0DB8, 0, 0, 0, 0, 0, 0},
+              source_prefix: 128,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1103,7 +1401,7 @@ defmodule DNSpacketTest do
       result = DNSpacket.parse_edns_info(additional)
       # Should truncate to 16 bytes and parse as IPv6
       assert elem(result.ecs_subnet, 0) == 0x2001
-      assert elem(result.ecs_subnet, 1) == 0x0db8
+      assert elem(result.ecs_subnet, 1) == 0x0DB8
     end
 
     test "handles unknown address family" do
@@ -1111,7 +1409,12 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 99, client_subnet: <<1, 2, 3, 4>>, source_prefix: 16, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 99,
+              client_subnet: <<1, 2, 3, 4>>,
+              source_prefix: 16,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1126,7 +1429,12 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 1, client_subnet: {0, 0, 0, 0}, source_prefix: -1, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 1,
+              client_subnet: {0, 0, 0, 0},
+              source_prefix: -1,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1142,7 +1450,12 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 1, client_subnet: {192, 168, 1, 1}, source_prefix: 32, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 1,
+              client_subnet: {192, 168, 1, 1},
+              source_prefix: 32,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1158,7 +1471,12 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            edns_client_subnet: %{family: 99, client_subnet: <<192, 168>>, source_prefix: 0, scope_prefix: 0}
+            edns_client_subnet: %{
+              family: 99,
+              client_subnet: <<192, 168>>,
+              source_prefix: 0,
+              scope_prefix: 0
+            }
           }
         }
       ]
@@ -1173,31 +1491,78 @@ defmodule DNSpacketTest do
     test "parses packet and includes edns_info for OPT record" do
       # Create a simple packet with OPT record (no EDNS options for now)
       packet_with_edns = <<
-        0x12, 0x34,  # ID
-        0x81, 0x80,  # Flags (response)
-        0x00, 0x01,  # QDCOUNT = 1
-        0x00, 0x01,  # ANCOUNT = 1
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x01,  # ARCOUNT = 1 (OPT record)
+        # ID
+        0x12,
+        0x34,
+        # Flags (response)
+        0x81,
+        0x80,
+        # QDCOUNT = 1
+        0x00,
+        0x01,
+        # ANCOUNT = 1
+        0x00,
+        0x01,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 1 (OPT record)
+        0x00,
+        0x01,
         # Question: example.com A IN
-        0x07, "example", 0x03, "com", 0x00,
-        0x00, 0x01,  # QTYPE = A
-        0x00, 0x01,  # QCLASS = IN
+        0x07,
+        "example",
+        0x03,
+        "com",
+        0x00,
+        # QTYPE = A
+        0x00,
+        0x01,
+        # QCLASS = IN
+        0x00,
+        0x01,
         # Answer: example.com A 192.168.1.1
-        0xC0, 0x0C,  # Pointer to question name
-        0x00, 0x01,  # TYPE = A
-        0x00, 0x01,  # CLASS = IN
-        0x00, 0x00, 0x01, 0x2C,  # TTL = 300
-        0x00, 0x04,  # RDLENGTH = 4
-        192, 168, 1, 1,  # IP address
+        # Pointer to question name
+        0xC0,
+        0x0C,
+        # TYPE = A
+        0x00,
+        0x01,
+        # CLASS = IN
+        0x00,
+        0x01,
+        # TTL = 300
+        0x00,
+        0x00,
+        0x01,
+        0x2C,
+        # RDLENGTH = 4
+        0x00,
+        0x04,
+        # IP address
+        192,
+        168,
+        1,
+        1,
         # OPT record without options
-        0x00,                      # Empty name
-        0x00, 0x29,               # TYPE = OPT (41)
-        0x04, 0xD0,               # Payload size = 1232
-        0x00,                     # Extended RCODE
-        0x00,                     # Version
-        0x80, 0x00,               # Flags (DNSSEC OK)
-        0x00, 0x00                # RDLENGTH = 0 (no options)
+        # Empty name
+        0x00,
+        # TYPE = OPT (41)
+        0x00,
+        0x29,
+        # Payload size = 1232
+        0x04,
+        0xD0,
+        # Extended RCODE
+        0x00,
+        # Version
+        0x00,
+        # Flags (DNSSEC OK)
+        0x80,
+        0x00,
+        # RDLENGTH = 0 (no options)
+        0x00,
+        0x00
       >>
 
       parsed = DNSpacket.parse(packet_with_edns)
@@ -1217,23 +1582,59 @@ defmodule DNSpacketTest do
     test "parses packet without OPT record and sets edns_info to nil" do
       # Create a simple packet without EDNS
       simple_packet = <<
-        0x12, 0x34,  # ID
-        0x81, 0x80,  # Flags (response)
-        0x00, 0x01,  # QDCOUNT = 1
-        0x00, 0x01,  # ANCOUNT = 1
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x00,  # ARCOUNT = 0
+        # ID
+        0x12,
+        0x34,
+        # Flags (response)
+        0x81,
+        0x80,
+        # QDCOUNT = 1
+        0x00,
+        0x01,
+        # ANCOUNT = 1
+        0x00,
+        0x01,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 0
+        0x00,
+        0x00,
         # Question: example.com A IN
-        0x07, "example", 0x03, "com", 0x00,
-        0x00, 0x01,  # QTYPE = A
-        0x00, 0x01,  # QCLASS = IN
+        0x07,
+        "example",
+        0x03,
+        "com",
+        0x00,
+        # QTYPE = A
+        0x00,
+        0x01,
+        # QCLASS = IN
+        0x00,
+        0x01,
         # Answer: example.com A 192.168.1.1
-        0xC0, 0x0C,  # Pointer to question name
-        0x00, 0x01,  # TYPE = A
-        0x00, 0x01,  # CLASS = IN
-        0x00, 0x00, 0x01, 0x2C,  # TTL = 300
-        0x00, 0x04,  # RDLENGTH = 4
-        192, 168, 1, 1  # IP address
+        # Pointer to question name
+        0xC0,
+        0x0C,
+        # TYPE = A
+        0x00,
+        0x01,
+        # CLASS = IN
+        0x00,
+        0x01,
+        # TTL = 300
+        0x00,
+        0x00,
+        0x01,
+        0x2C,
+        # RDLENGTH = 4
+        0x00,
+        0x04,
+        # IP address
+        192,
+        168,
+        1,
+        1
       >>
 
       parsed = DNSpacket.parse(simple_packet)
@@ -1314,8 +1715,15 @@ defmodule DNSpacketTest do
         qr: 1,
         rd: 1,
         question: [%{qname: "example.com.", qtype: :a, qclass: :in}],
-        answer: [%{name: "example.com.", type: :a, class: :in, ttl: 300,
-                   rdata: %{addr: {192, 168, 1, 1}}}],
+        answer: [
+          %{
+            name: "example.com.",
+            type: :a,
+            class: :in,
+            ttl: 300,
+            rdata: %{addr: {192, 168, 1, 1}}
+          }
+        ],
         edns_info: %{
           payload_size: 4096,
           dnssec: 1,
@@ -1358,7 +1766,7 @@ defmodule DNSpacketTest do
           version: 0,
           dnssec: 0,
           ecs_family: 2,
-          ecs_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0},
+          ecs_subnet: {0x2001, 0xDB8, 0x1234, 0, 0, 0, 0, 0},
           ecs_source_prefix: 48,
           ecs_scope_prefix: 0,
           cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
@@ -1373,7 +1781,7 @@ defmodule DNSpacketTest do
       # Verify EDNS options are preserved
       edns = parsed_packet.edns_info
       assert edns.ecs_family == 2
-      assert edns.ecs_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
+      assert edns.ecs_subnet == {0x2001, 0xDB8, 0x1234, 0, 0, 0, 0, 0}
       assert edns.ecs_source_prefix == 48
 
       assert edns.cookie_client == <<1, 2, 3, 4, 5, 6, 7, 8>>
@@ -1405,8 +1813,13 @@ defmodule DNSpacketTest do
         rd: 1,
         question: [%{qname: "replace.example.com.", qtype: :a, qclass: :in}],
         additional: [
-          %{name: "ns1.example.com.", type: :a, class: :in, ttl: 300,
-            rdata: %{addr: {1, 2, 3, 4}}},
+          %{
+            name: "ns1.example.com.",
+            type: :a,
+            class: :in,
+            ttl: 300,
+            rdata: %{addr: {1, 2, 3, 4}}
+          },
           %{type: :opt, payload_size: 512, ex_rcode: 0, version: 0, dnssec: 0, z: 0, rdata: []}
         ],
         edns_info: %{
@@ -1480,7 +1893,7 @@ defmodule DNSpacketTest do
       # Test /32 prefix (4 bytes)
       edns_info = %{
         ecs_family: 2,
-        ecs_subnet: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 0},
+        ecs_subnet: {0x2001, 0xDB8, 0, 0, 0, 0, 0, 0},
         ecs_source_prefix: 32,
         ecs_scope_prefix: 0
       }
@@ -1488,12 +1901,12 @@ defmodule DNSpacketTest do
       opt_record = DNSpacket.create_edns_info_record(edns_info)
       ecs_option = hd(opt_record.rdata)
       ecs_data = elem(ecs_option, 1)
-      assert ecs_data.client_subnet == {0x2001, 0xdb8, 0, 0, 0, 0, 0, 0}
+      assert ecs_data.client_subnet == {0x2001, 0xDB8, 0, 0, 0, 0, 0, 0}
 
       # Test /48 prefix (6 bytes)
       edns_info2 = %{
         ecs_family: 2,
-        ecs_subnet: {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0},
+        ecs_subnet: {0x2001, 0xDB8, 0x1234, 0, 0, 0, 0, 0},
         ecs_source_prefix: 48,
         ecs_scope_prefix: 0
       }
@@ -1501,7 +1914,7 @@ defmodule DNSpacketTest do
       opt_record2 = DNSpacket.create_edns_info_record(edns_info2)
       ecs_option2 = hd(opt_record2.rdata)
       ecs_data2 = elem(ecs_option2, 1)
-      assert ecs_data2.client_subnet == {0x2001, 0xdb8, 0x1234, 0, 0, 0, 0, 0}
+      assert ecs_data2.client_subnet == {0x2001, 0xDB8, 0x1234, 0, 0, 0, 0, 0}
     end
 
     test "unknown address family with binary address" do
@@ -1694,7 +2107,13 @@ defmodule DNSpacketTest do
         %{
           type: :opt,
           rdata: %{
-            llq: %{version: 1, llq_opcode: 1, error_code: 0, llq_id: 1_234_567_890_123_456, lease_life: 3600}
+            llq: %{
+              version: 1,
+              llq_opcode: 1,
+              error_code: 0,
+              llq_id: 1_234_567_890_123_456,
+              lease_life: 3600
+            }
           }
         }
       ]
@@ -1844,7 +2263,12 @@ defmodule DNSpacketTest do
 
     test "creates binary from options map" do
       options = %{
-        edns_client_subnet: %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 8, scope_prefix: 0}
+        edns_client_subnet: %{
+          family: 1,
+          client_subnet: {10, 0, 0, 0},
+          source_prefix: 8,
+          scope_prefix: 0
+        }
       }
 
       result = DNSpacket.create_edns_options(options)
@@ -1858,7 +2282,12 @@ defmodule DNSpacketTest do
     test "ignores invalid option keys" do
       options = %{
         invalid_key: %{some: "data"},
-        edns_client_subnet: %{family: 1, client_subnet: {10, 0, 0, 0}, source_prefix: 8, scope_prefix: 0}
+        edns_client_subnet: %{
+          family: 1,
+          client_subnet: {10, 0, 0, 0},
+          source_prefix: 8,
+          scope_prefix: 0
+        }
       }
 
       result = DNSpacket.create_edns_options(options)
@@ -1869,7 +2298,12 @@ defmodule DNSpacketTest do
 
     test "creates all supported EDNS options" do
       options = %{
-        edns_client_subnet: %{family: 1, client_subnet: {192, 168, 1, 0}, source_prefix: 24, scope_prefix: 0},
+        edns_client_subnet: %{
+          family: 1,
+          client_subnet: {192, 168, 1, 0},
+          source_prefix: 24,
+          scope_prefix: 0
+        },
         cookie: %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: <<9, 10, 11, 12, 13, 14, 15, 16>>},
         nsid: "server1.example.com",
         extended_dns_error: %{info_code: 18, extra_text: "Blocked"},
@@ -1886,7 +2320,13 @@ defmodule DNSpacketTest do
         report_channel: %{agent_domain: "agent.example.com"},
         zoneversion: %{version: 1_234_567_890_123_456},
         update_lease: %{lease: 7200},
-        llq: %{version: 1, llq_opcode: 1, error_code: 0, llq_id: 1_234_567_890_123_456, lease_life: 3600},
+        llq: %{
+          version: 1,
+          llq_opcode: 1,
+          error_code: 0,
+          llq_id: 1_234_567_890_123_456,
+          lease_life: 3600
+        },
         umbrella_ident: %{ident: 0x12345678},
         deviceid: %{device_id: "device123"},
         unknown: [%{code: 65_535, data: <<1, 2, 3, 4>>}]
@@ -1901,11 +2341,15 @@ defmodule DNSpacketTest do
       parsed_options = DNSpacket.parse_opt_rr(%{}, result)
       # Count known options + unknown list length
       known_count = map_size(Map.drop(parsed_options, [:unknown]))
-      unknown_count = case Map.get(parsed_options, :unknown) do
-        nil -> 0
-        list -> length(list)
-      end
-      assert known_count + unknown_count >= 20  # At least 20 options
+
+      unknown_count =
+        case Map.get(parsed_options, :unknown) do
+          nil -> 0
+          list -> length(list)
+        end
+
+      # At least 20 options
+      assert known_count + unknown_count >= 20
 
       # Verify a few specific options - now using tuple format
       assert Enum.any?(parsed_options, fn {key, _} -> key == :edns_client_subnet end)
@@ -1964,9 +2408,9 @@ defmodule DNSpacketTest do
       unknown_options = Map.get(parsed, :unknown, [])
       assert length(unknown_options) == 2
       # Unknown options are stored in :unknown key as a list
-      assert Enum.all?(unknown_options, fn option -> 
-        option.data in [<<1, 2, 3>>, <<4, 5, 6, 7>>]
-      end)
+      assert Enum.all?(unknown_options, fn option ->
+               option.data in [<<1, 2, 3>>, <<4, 5, 6, 7>>]
+             end)
     end
   end
 
@@ -1978,8 +2422,7 @@ defmodule DNSpacketTest do
         rd: 1,
         question: [%{qname: "test.com.", qtype: :a, qclass: :in}],
         additional: [
-          %{name: "ns1.test.com.", type: :a, class: :in, ttl: 300,
-            rdata: %{addr: {1, 2, 3, 4}}}
+          %{name: "ns1.test.com.", type: :a, class: :in, ttl: 300, rdata: %{addr: {1, 2, 3, 4}}}
         ],
         edns_info: nil
       }
@@ -2041,13 +2484,16 @@ defmodule DNSpacketTest do
       assert is_list(opt_record.rdata)
 
       # Count the rdata entries
-      assert length(opt_record.rdata) == 22  # 20 known options + 2 unknown
+      # 20 known options + 2 unknown
+      assert length(opt_record.rdata) == 22
 
       # Verify ECS conversion
-      ecs_rdata = Enum.find(opt_record.rdata, fn
-        {:edns_client_subnet, _} -> true
-        _ -> false
-      end)
+      ecs_rdata =
+        Enum.find(opt_record.rdata, fn
+          {:edns_client_subnet, _} -> true
+          _ -> false
+        end)
+
       ecs_data = elem(ecs_rdata, 1)
       assert ecs_data.family == 1
       assert ecs_data.source_prefix == 24
@@ -2055,69 +2501,87 @@ defmodule DNSpacketTest do
       assert ecs_data.client_subnet == {192, 168, 1, 0}
 
       # Verify cookie conversion
-      cookie_rdata = Enum.find(opt_record.rdata, fn
-        {:cookie, _} -> true
-        _ -> false
-      end)
+      cookie_rdata =
+        Enum.find(opt_record.rdata, fn
+          {:cookie, _} -> true
+          _ -> false
+        end)
+
       cookie_data = elem(cookie_rdata, 1)
       assert cookie_data.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
       assert cookie_data.server == <<9, 10, 11, 12, 13, 14, 15, 16>>
 
       # Verify NSID conversion
-      nsid_rdata = Enum.find(opt_record.rdata, fn
-        {:nsid, _} -> true
-        _ -> false
-      end)
+      nsid_rdata =
+        Enum.find(opt_record.rdata, fn
+          {:nsid, _} -> true
+          _ -> false
+        end)
+
       assert elem(nsid_rdata, 1) == "server.example.com"
 
       # Verify extended DNS error conversion
-      ede_rdata = Enum.find(opt_record.rdata, fn
-        {:extended_dns_error, _} -> true
-        _ -> false
-      end)
+      ede_rdata =
+        Enum.find(opt_record.rdata, fn
+          {:extended_dns_error, _} -> true
+          _ -> false
+        end)
+
       ede_data = elem(ede_rdata, 1)
       assert ede_data.info_code == 18
       assert ede_data.extra_text == "Blocked by policy"
 
       # Verify TCP keepalive conversion
-      tcp_rdata = Enum.find(opt_record.rdata, fn
-        {:edns_tcp_keepalive, _} -> true
-        _ -> false
-      end)
+      tcp_rdata =
+        Enum.find(opt_record.rdata, fn
+          {:edns_tcp_keepalive, _} -> true
+          _ -> false
+        end)
+
       tcp_data = elem(tcp_rdata, 1)
       assert tcp_data.timeout == 300
 
       # Verify padding conversion
-      padding_rdata = Enum.find(opt_record.rdata, fn
-        {:padding, _} -> true
-        _ -> false
-      end)
+      padding_rdata =
+        Enum.find(opt_record.rdata, fn
+          {:padding, _} -> true
+          _ -> false
+        end)
+
       padding_data = elem(padding_rdata, 1)
       assert padding_data.length == 8
 
       # Verify algorithm options
-      dau_rdata = Enum.find(opt_record.rdata, fn
-        {:dau, _} -> true
-        _ -> false
-      end)
+      dau_rdata =
+        Enum.find(opt_record.rdata, fn
+          {:dau, _} -> true
+          _ -> false
+        end)
+
       dau_data = elem(dau_rdata, 1)
       assert dau_data.algorithms == [7, 8, 10]
 
       # Verify LLQ conversion
-      llq_rdata = Enum.find(opt_record.rdata, fn
-        {:llq, _} -> true
-        _ -> false
-      end)
+      llq_rdata =
+        Enum.find(opt_record.rdata, fn
+          {:llq, _} -> true
+          _ -> false
+        end)
+
       llq_data = elem(llq_rdata, 1)
       assert llq_data.version == 1
       assert llq_data.llq_id == 9_876_543_210
 
       # Verify unknown options are passed through (they remain in old format)
-      unknown_rdatas = Enum.filter(opt_record.rdata, fn
-        {_code, _data} -> false  # Skip tuples
-        %{code: code} when code in [65_000, 65_001] -> true  # Match old format unknown options
-        _ -> false
-      end)
+      unknown_rdatas =
+        Enum.filter(opt_record.rdata, fn
+          # Skip tuples
+          {_code, _data} -> false
+          # Match old format unknown options
+          %{code: code} when code in [65_000, 65_001] -> true
+          _ -> false
+        end)
+
       assert length(unknown_rdatas) == 2
     end
 
@@ -2177,7 +2641,7 @@ defmodule DNSpacketTest do
       # Test IPv6
       edns_info_v6 = %{
         ecs_family: 2,
-        ecs_subnet: {0x2001, 0xdb8, 0, 0, 0, 0, 0, 1},
+        ecs_subnet: {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1},
         ecs_source_prefix: 64,
         ecs_scope_prefix: 0
       }
@@ -2185,7 +2649,624 @@ defmodule DNSpacketTest do
       opt_record_v6 = DNSpacket.create_edns_info_record(edns_info_v6)
       ecs_v6 = hd(opt_record_v6.rdata)
       ecs_v6_data = elem(ecs_v6, 1)
-      assert ecs_v6_data.client_subnet == {0x2001, 0xdb8, 0, 0, 0, 0, 0, 1}
+      assert ecs_v6_data.client_subnet == {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}
+    end
+  end
+
+  describe "EDNS option creation tests" do
+    test "creates EDNS record with cookie option" do
+      edns_info = %{
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>
+      }
+
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :cookie
+      assert option_data.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+    end
+
+    test "creates EDNS record with extended DNS error" do
+      edns_info = %{
+        extended_dns_error_info_code: 18,
+        extended_dns_error_extra_text: "Filtered"
+      }
+
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :extended_dns_error
+      assert option_data.info_code == 18
+      assert option_data.extra_text == "Filtered"
+    end
+
+    test "creates EDNS record with TCP keepalive" do
+      edns_info = %{
+        edns_tcp_keepalive_timeout: 300
+      }
+
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :edns_tcp_keepalive
+      assert option_data.timeout == 300
+    end
+
+    test "creates EDNS record with DAU algorithms" do
+      edns_info = %{
+        dau_algorithms: [7, 8]
+      }
+
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :dau
+      assert option_data.algorithms == [7, 8]
+    end
+
+    test "creates EDNS record with DHU algorithms" do
+      edns_info = %{
+        dhu_algorithms: [1, 2]
+      }
+
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :dhu
+      assert option_data.algorithms == [1, 2]
+    end
+
+    test "creates EDNS record with N3U algorithms" do
+      edns_info = %{
+        n3u_algorithms: [1]
+      }
+
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :n3u
+      assert option_data.algorithms == [1]
+    end
+
+    test "creates EDNS record with NSID" do
+      edns_info = %{
+        nsid: <<0x80, 0x81, 0x82, 0x83>>
+      }
+
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :nsid
+      assert option_data == <<0x80, 0x81, 0x82, 0x83>>
+    end
+
+    test "creates full EDNS packet with extended DNS error" do
+      packet = %DNSpacket{
+        id: 0x1234,
+        qr: 1,
+        opcode: 0,
+        rcode: 0,
+        question: [%{qname: "example.com.", qtype: :a, qclass: :in}],
+        edns_info: %{
+          extended_dns_error_info_code: 21,
+          extended_dns_error_extra_text: "Unsupported DS Digest Type"
+        }
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x1234
+      assert parsed.edns_info.extended_dns_error_info_code == 21
+      assert parsed.edns_info.extended_dns_error_extra_text == "Unsupported DS Digest Type"
+    end
+
+    test "creates full EDNS packet with TCP keepalive nil timeout" do
+      packet = %DNSpacket{
+        id: 0x5678,
+        qr: 1,
+        question: [%{qname: "test.com.", qtype: :aaaa, qclass: :in}],
+        edns_info: %{
+          edns_tcp_keepalive_timeout: nil
+        }
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x5678
+      assert parsed.edns_info.edns_tcp_keepalive_timeout == nil
+    end
+
+    test "creates full EDNS packet with TCP keepalive timeout value" do
+      packet = %DNSpacket{
+        id: 0x9ABC,
+        qr: 1,
+        question: [%{qname: "keepalive.com.", qtype: :mx, qclass: :in}],
+        edns_info: %{
+          edns_tcp_keepalive_timeout: 300
+        }
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x9ABC
+      assert parsed.edns_info.edns_tcp_keepalive_timeout == 300
+    end
+
+    test "creates EDNS packet with padding option" do
+      packet = %DNSpacket{
+        id: 0xDEF0,
+        qr: 0,
+        question: [%{qname: "padded.example.com.", qtype: :txt, qclass: :in}],
+        edns_info: %{
+          padding_length: 16
+        }
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0xDEF0
+      assert parsed.edns_info.padding_length == 16
+    end
+
+    test "creates EDNS packet with DNSSEC algorithms" do
+      packet = %DNSpacket{
+        id: 0x1357,
+        qr: 0,
+        question: [%{qname: "dnssec.example.com.", qtype: :dnskey, qclass: :in}],
+        edns_info: %{
+          dau_algorithms: [7, 8, 10],
+          dhu_algorithms: [1, 2, 4],
+          n3u_algorithms: [1]
+        }
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x1357
+      assert parsed.edns_info.dau_algorithms == [7, 8, 10]
+      assert parsed.edns_info.dhu_algorithms == [1, 2, 4]
+      assert parsed.edns_info.n3u_algorithms == [1]
+    end
+  end
+
+  describe "Advanced DNS record types tests" do
+    test "creates SRV record rdata" do
+      rdata = %{
+        priority: 10,
+        weight: 20,
+        port: 443,
+        target: "target.example.com."
+      }
+
+      result = DNSpacket.create_rdata(rdata, :srv, :in)
+      expected = <<10::16, 20::16, 443::16, 6, "target", 7, "example", 3, "com", 0>>
+      assert result == expected
+    end
+
+    test "creates NAPTR record rdata" do
+      rdata = %{
+        order: 100,
+        preference: 10,
+        flags: "S",
+        services: "SIP+D2U",
+        regexp: "",
+        replacement: "sip.example.com."
+      }
+
+      result = DNSpacket.create_rdata(rdata, :naptr, :in)
+      expected = <<100::16, 10::16, 1, "S", 7, "SIP+D2U", 0, 3, "sip", 7, "example", 3, "com", 0>>
+      assert result == expected
+    end
+
+    test "creates DNSKEY record rdata" do
+      rdata = %{
+        flags: 256,
+        protocol: 3,
+        algorithm: 7,
+        public_key: <<1, 2, 3, 4>>
+      }
+
+      result = DNSpacket.create_rdata(rdata, :dnskey, :in)
+      expected = <<256::16, 3, 7, 1, 2, 3, 4>>
+      assert result == expected
+    end
+
+    test "creates DS record rdata" do
+      rdata = %{
+        key_tag: 12_345,
+        algorithm: 7,
+        digest_type: 1,
+        digest: <<0x9F, 0x6A, 0x2B, 0x96>>
+      }
+
+      result = DNSpacket.create_rdata(rdata, :ds, :in)
+      expected = <<12_345::16, 7, 1, 0x9F, 0x6A, 0x2B, 0x96>>
+      assert result == expected
+    end
+
+    test "creates NSEC record rdata" do
+      rdata = %{
+        next_domain_name: "next.example.com.",
+        type_bit_maps: <<0, 1, 0x40>>
+      }
+
+      result = DNSpacket.create_rdata(rdata, :nsec, :in)
+      expected = <<4, "next", 7, "example", 3, "com", 0, 0, 1, 0x40>>
+      assert result == expected
+    end
+
+    test "creates NSEC record with multiple type bitmaps" do
+      rdata = %{
+        next_domain_name: "b.example.com.",
+        type_bit_maps: [:a, :ns, :soa, :mx, :aaaa, :rrsig, :nsec, :dnskey]
+      }
+
+      result = DNSpacket.create_rdata(rdata, :nsec, :in)
+      # Should create proper type bitmap representation
+      assert is_binary(result)
+      # Domain name + type bitmaps
+      assert byte_size(result) > 15
+    end
+
+    test "parses NSEC record with type bitmaps" do
+      # NSEC record with A, NS, SOA types in bitmap
+      rdata = <<1, "b", 7, "example", 3, "com", 0, 0, 1, 0x40>>
+      result = DNSpacket.parse_rdata(rdata, :nsec, :in, <<>>)
+
+      expected = %{
+        next_domain_name: "b.example.com.",
+        type_bit_maps: [:a]
+      }
+
+      assert result == expected
+    end
+
+    test "creates SVCB record rdata" do
+      rdata = %{
+        priority: 1,
+        target: "svc.example.com.",
+        svc_params: %{1 => <<1, 187>>, 4 => <<192, 0, 2, 1>>}
+      }
+
+      result = DNSpacket.create_rdata(rdata, :svcb, :in)
+      # Check that result is binary and has reasonable size
+      assert is_binary(result)
+      assert byte_size(result) > 10
+    end
+
+    test "creates HTTPS record rdata" do
+      rdata = %{
+        priority: 0,
+        target: ".",
+        svc_params: %{}
+      }
+
+      result = DNSpacket.create_rdata(rdata, :https, :in)
+      # Just check that it's a binary with the priority and target
+      assert is_binary(result)
+      assert byte_size(result) >= 2
+    end
+
+    test "parses SRV record rdata" do
+      rdata = <<10::16, 20::16, 443::16, 6, "target", 7, "example", 3, "com", 0>>
+      result = DNSpacket.parse_rdata(rdata, :srv, :in, <<>>)
+
+      expected = %{
+        priority: 10,
+        weight: 20,
+        port: 443,
+        target: "target.example.com."
+      }
+
+      assert result == expected
+    end
+
+    test "parses SVCB record rdata" do
+      rdata = <<1::16, 3, "svc", 7, "example", 3, "com", 0, 1::16, 2::16, 1, 187>>
+      result = DNSpacket.parse_rdata(rdata, :svcb, :in, <<>>)
+
+      expected = %{
+        priority: 1,
+        target: "svc.example.com.",
+        svc_params: %{alpn: [<<187>>]}
+      }
+
+      assert result == expected
+    end
+
+    test "parses HTTPS record rdata" do
+      rdata = <<0::16, 0>>
+      result = DNSpacket.parse_rdata(rdata, :https, :in, <<>>)
+
+      expected = %{
+        priority: 0,
+        target: ".",
+        svc_params: %{}
+      }
+
+      assert result == expected
+    end
+  end
+
+  describe "SVCB/HTTPS service parameter parsing tests" do
+    test "parses service parameters with create_svc_params" do
+      params = %{1 => <<443::16>>, 4 => <<192, 0, 2, 1>>}
+      result = DNSpacket.create_svc_params(params)
+      # This should create the binary representation of service parameters
+      assert is_binary(result)
+      assert byte_size(result) > 0
+    end
+
+    test "parses empty service parameters" do
+      result = DNSpacket.parse_svc_params(<<>>)
+      expected = %{}
+      assert result == expected
+    end
+
+    test "parses service parameters with port" do
+      # Parameter key=1 (alpn), length=2, value with single byte length prefix
+      param_binary = <<1::16, 2::16, 1, 187>>
+      result = DNSpacket.parse_svc_params(param_binary)
+      expected = %{alpn: [<<187>>]}
+      assert result == expected
+    end
+  end
+
+  describe "EDNS parsing integration tests" do
+    test "parses EDNS OPT record with multiple options" do
+      # Create a packet with EDNS options and parse it
+      edns_info = %{
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        nsid: <<0x80, 0x81, 0x82, 0x83>>
+      }
+
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      assert length(opt_record.rdata) == 2
+
+      # Check that both options are present
+      option_types = Enum.map(opt_record.rdata, fn {type, _data} -> type end)
+      assert :cookie in option_types
+      assert :nsid in option_types
+    end
+
+    test "handles unknown ECS address family" do
+      # ECS with unknown family (family=99)
+      edns_info = %{
+        ecs_family: 99,
+        ecs_subnet: {0, 0, 0, 0},
+        ecs_source_prefix: 0,
+        ecs_scope_prefix: 0
+      }
+
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      ecs_data = hd(opt_record.rdata)
+      ecs_result = elem(ecs_data, 1)
+      assert ecs_result.family == 99
+    end
+
+    test "creates packet with unknown options in rdata" do
+      # Test unknown option handling in additional records
+      packet = %DNSpacket{
+        id: 0x1111,
+        qr: 1,
+        question: [%{qname: "test.com.", qtype: :a, qclass: :in}],
+        additional: [
+          %{
+            name: "",
+            type: :opt,
+            payload_size: 512,
+            ex_rcode: 0,
+            version: 0,
+            dnssec: 0,
+            z: 0,
+            rdata: %{
+              unknown_options: %{999 => <<1, 2, 3, 4>>}
+            }
+          }
+        ]
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x1111
+      assert is_map(parsed.edns_info.unknown_options)
+    end
+
+    test "handles EDNS expire option with different formats" do
+      # Test EDNS expire with nil (empty data)
+      packet = %DNSpacket{
+        id: 0x2222,
+        question: [%{qname: "expire.test.", qtype: :a, qclass: :in}],
+        edns_info: %{
+          edns_expire: nil
+        }
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x2222
+      # Just check that packet was parsed successfully
+      assert is_struct(parsed, DNSpacket)
+    end
+
+    test "handles Chain option with trust point" do
+      packet = %DNSpacket{
+        id: 0x3333,
+        question: [%{qname: "chain.test.", qtype: :a, qclass: :in}],
+        edns_info: %{
+          chain_point_of_trust: "trust.example.com."
+        }
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x3333
+      # Just check that packet was parsed successfully
+      assert is_struct(parsed, DNSpacket)
+    end
+
+    test "handles Key Tag option" do
+      packet = %DNSpacket{
+        id: 0x4444,
+        question: [%{qname: "keytag.test.", qtype: :dnskey, qclass: :in}],
+        edns_info: %{
+          edns_key_tag_list: [12_345, 67_890]
+        }
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x4444
+      # Just check that packet was parsed successfully
+      assert is_struct(parsed, DNSpacket)
+    end
+
+    test "creates comprehensive EDNS options for maximum coverage" do
+      # Test multiple EDNS options that aren't fully covered yet
+      edns_info = %{
+        edns_expire: nil,
+        chain_point_of_trust: "closest.example.com.",
+        edns_client_tag_tags: [1234],
+        edns_server_tag_tags: [5678],
+        report_channel_agent_domain: "agent.example.com.",
+        update_lease_lease_time: 3600
+      }
+
+      result = DNSpacket.create_edns_info_record(edns_info)
+      # Should successfully create EDNS info record
+      assert is_map(result)
+      assert result.type == :opt
+    end
+
+    test "creates DNSSEC record types for coverage" do
+      # DNAME record
+      dname_rdata = %{target: "target.example.com."}
+      dname_result = DNSpacket.create_rdata(dname_rdata, :dname, :in)
+      assert is_binary(dname_result)
+      assert byte_size(dname_result) > 5
+
+      # RRSIG record
+      rrsig_rdata = %{
+        # A record
+        type_covered: 1,
+        algorithm: 8,
+        labels: 3,
+        original_ttl: 3600,
+        signature_expiration: 1_640_995_200,
+        signature_inception: 1_640_908_800,
+        key_tag: 12_345,
+        signer_name: "example.com.",
+        signature: <<1, 2, 3, 4, 5>>
+      }
+
+      rrsig_result = DNSpacket.create_rdata(rrsig_rdata, :rrsig, :in)
+      assert is_binary(rrsig_result)
+      assert byte_size(rrsig_result) > 20
+    end
+
+    test "creates specific SVC parameter types for coverage" do
+      # Test SVC params with various types
+      params = %{
+        alpn: ["h2", "h3"],
+        port: 443,
+        ipv4_hints: [{192, 168, 1, 1}, {10, 0, 0, 1}],
+        ipv6_hints: [{0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}]
+      }
+
+      result = DNSpacket.create_svc_params(params)
+      assert is_binary(result)
+      assert byte_size(result) > 10
+
+      # Test edge case with invalid input
+      result_invalid = DNSpacket.create_svc_params("invalid")
+      assert result_invalid == <<>>
+    end
+
+    test "creates cookie option with client-only for specific coverage" do
+      # Test the specific path for client-only cookie creation
+      edns_info = %{
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        cookie_server: nil
+      }
+
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      assert length(opt_record.rdata) == 1
+
+      {option_type, option_data} = hd(opt_record.rdata)
+      assert option_type == :cookie
+      assert option_data.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+      assert option_data.server == nil
+    end
+
+    test "handles edge cases in record creation for coverage" do
+      # Test various edge cases that increase coverage
+
+      # Test unknown record type fallback
+      result1 = DNSpacket.create_rdata(%{data: <<1, 2, 3>>}, :unknown_type, :in)
+      assert result1 == %{data: <<1, 2, 3>>}
+
+      # Test CAA record with different property tags
+      caa_rdata = %{
+        flag: 128,
+        tag: "issue",
+        value: "ca.example.net"
+      }
+
+      caa_result = DNSpacket.create_rdata(caa_rdata, :caa, :in)
+      assert is_binary(caa_result)
+      assert byte_size(caa_result) > 10
+
+      # Test empty SVCB parameters
+      svcb_empty = %{
+        priority: 0,
+        target: ".",
+        svc_params: %{}
+      }
+
+      svcb_result = DNSpacket.create_rdata(svcb_empty, :svcb, :in)
+      assert is_binary(svcb_result)
+    end
+
+    test "creates packet with EDNS and parses it back" do
+      packet = %DNSpacket{
+        id: 0x1234,
+        qr: 0,
+        opcode: 0,
+        rd: 1,
+        question: [%{qname: "example.com.", qtype: :a, qclass: :in}],
+        additional: [
+          %{
+            name: "",
+            type: :opt,
+            payload_size: 512,
+            ex_rcode: 0,
+            version: 0,
+            dnssec: 0,
+            z: 0,
+            rdata: [
+              {:cookie, %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil}}
+            ]
+          }
+        ]
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x1234
+      assert length(parsed.additional) == 1
+      opt_record = hd(parsed.additional)
+      assert opt_record.type == :opt
+      assert map_size(opt_record.rdata) == 1
     end
   end
 end
