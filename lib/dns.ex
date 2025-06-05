@@ -36,36 +36,53 @@ defmodule DNS do
   """
 
   # Inline DNS constant lookups for maximum performance
-  @compile {:inline, [
-    type: 1,
-    type_code: 1,
-    class: 1,
-    class_code: 1,
-    rcode: 1,
-    rcode_code: 1,
-    option: 1,
-    option_code: 1
-  ]}
+  @compile {:inline,
+            [
+              type: 1,
+              type_code: 1,
+              class: 1,
+              class_code: 1,
+              rcode: 1,
+              rcode_code: 1,
+              option: 1,
+              option_code: 1
+            ]}
 
   # Pre-compile lookup maps for better performance
   # Reference: https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml
   @type_map %{
-    1 => :a,       # RFC 1035 - a host address
-    2 => :ns,      # RFC 1035 - an authoritative name server
-    3 => :md,      # RFC 1035 - a mail destination (OBSOLETE)
-    4 => :mf,      # RFC 1035 - a mail forwarder (OBSOLETE)
-    5 => :cname,   # RFC 1035 - the canonical name for an alias
-    6 => :soa,     # RFC 1035 - marks the start of a zone of authority
-    7 => :mb,      # RFC 1035 - a mailbox domain name (EXPERIMENTAL)
-    8 => :mg,      # RFC 1035 - a mail group member (EXPERIMENTAL)
-    9 => :mr,      # RFC 1035 - a mail rename domain name (EXPERIMENTAL)
-    10 => :null,   # RFC 1035 - a null RR (EXPERIMENTAL)
-    11 => :wks,    # RFC 1035 - a well known service description
-    12 => :ptr,    # RFC 1035 - a domain name pointer
-    13 => :hinfo,  # RFC 1035 - host information
-    14 => :minfo,  # RFC 1035 - mailbox or mail list information
-    15 => :mx,     # RFC 1035 - mail exchange
-    16 => :txt,    # RFC 1035 - text strings
+    # RFC 1035 - a host address
+    1 => :a,
+    # RFC 1035 - an authoritative name server
+    2 => :ns,
+    # RFC 1035 - a mail destination (OBSOLETE)
+    3 => :md,
+    # RFC 1035 - a mail forwarder (OBSOLETE)
+    4 => :mf,
+    # RFC 1035 - the canonical name for an alias
+    5 => :cname,
+    # RFC 1035 - marks the start of a zone of authority
+    6 => :soa,
+    # RFC 1035 - a mailbox domain name (EXPERIMENTAL)
+    7 => :mb,
+    # RFC 1035 - a mail group member (EXPERIMENTAL)
+    8 => :mg,
+    # RFC 1035 - a mail rename domain name (EXPERIMENTAL)
+    9 => :mr,
+    # RFC 1035 - a null RR (EXPERIMENTAL)
+    10 => :null,
+    # RFC 1035 - a well known service description
+    11 => :wks,
+    # RFC 1035 - a domain name pointer
+    12 => :ptr,
+    # RFC 1035 - host information
+    13 => :hinfo,
+    # RFC 1035 - mailbox or mail list information
+    14 => :minfo,
+    # RFC 1035 - mail exchange
+    15 => :mx,
+    # RFC 1035 - text strings
+    16 => :txt,
     17 => :rp,
     18 => :afsdb,
     19 => :x25,
@@ -77,36 +94,61 @@ defmodule DNS do
     25 => :key,
     26 => :px,
     27 => :gpos,
-    28 => :aaaa,   # RFC 3596 - IP6 Address
-    29 => :loc,    # RFC 1876 - Location Information
-    30 => :nxt,    # RFC 3755 - Next Domain (OBSOLETE)
-    31 => :eid,    # Nimrod Endpoint Identifier
-    32 => :nimloc, # Nimrod Locator
-    33 => :srv,    # RFC 2052 - Server Selection
-    34 => :atma,   # ATM Address
-    35 => :naptr,  # RFC 3403 - Naming Authority Pointer
-    39 => :dname,  # RFC 2672 - DNAME
-    41 => :opt,    # RFC 6891 - OPT
-    43 => :ds,     # RFC 4034 - Delegation Signer
-    46 => :rrsig,  # RFC 4034 - RRSIG
-    47 => :nsec,   # RFC 4034 - NSEC
-    48 => :dnskey, # RFC 4034 - DNS Key
-    64 => :svcb,   # RFC 9460 - Service Binding
-    65 => :https,  # RFC 9460 - HTTPS Service Parameter
-    252 => :axfr,  # RFC 1035 - Authoritative Zone Transfer
-    255 => :any,   # RFC 1035 - QTYPE ANY
-    257 => :caa    # RFC 6844 - Certification Authority Authorization
+    # RFC 3596 - IP6 Address
+    28 => :aaaa,
+    # RFC 1876 - Location Information
+    29 => :loc,
+    # RFC 3755 - Next Domain (OBSOLETE)
+    30 => :nxt,
+    # Nimrod Endpoint Identifier
+    31 => :eid,
+    # Nimrod Locator
+    32 => :nimloc,
+    # RFC 2052 - Server Selection
+    33 => :srv,
+    # ATM Address
+    34 => :atma,
+    # RFC 3403 - Naming Authority Pointer
+    35 => :naptr,
+    # RFC 2672 - DNAME
+    39 => :dname,
+    # RFC 6891 - OPT
+    41 => :opt,
+    # RFC 4034 - Delegation Signer
+    43 => :ds,
+    # RFC 4034 - RRSIG
+    46 => :rrsig,
+    # RFC 4034 - NSEC
+    47 => :nsec,
+    # RFC 4034 - DNS Key
+    48 => :dnskey,
+    # RFC 9460 - Service Binding
+    64 => :svcb,
+    # RFC 9460 - HTTPS Service Parameter
+    65 => :https,
+    # RFC 1035 - Authoritative Zone Transfer
+    252 => :axfr,
+    # RFC 1035 - QTYPE ANY
+    255 => :any,
+    # RFC 6844 - Certification Authority Authorization
+    257 => :caa
   }
 
   @type_code_map for {k, v} <- @type_map, into: %{}, do: {v, k}
 
   @class_map %{
-    1 => :in,     # RFC 1035 - Internet
-    2 => :cs,     # RFC 1035 - CSNET (OBSOLETE)
-    3 => :ch,     # RFC 1035 - CHAOS
-    4 => :hs,     # RFC 1035 - Hesiod
-    254 => :none, # RFC 2136 - QCLASS NONE
-    255 => :any,  # RFC 1035 - QCLASS ANY
+    # RFC 1035 - Internet
+    1 => :in,
+    # RFC 1035 - CSNET (OBSOLETE)
+    2 => :cs,
+    # RFC 1035 - CHAOS
+    3 => :ch,
+    # RFC 1035 - Hesiod
+    4 => :hs,
+    # RFC 2136 - QCLASS NONE
+    254 => :none,
+    # RFC 1035 - QCLASS ANY
+    255 => :any,
     65_536 => :max
   }
 
@@ -140,28 +182,50 @@ defmodule DNS do
   # EDNS0 Option Codes
   # Reference: https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-11
   @option_map %{
-    0 => :reserved,            # Reserved
-    1 => :llq,                 # Apple - Long-lived query
-    2 => :update_lease,        # RFC 4761 - Update Lease
-    3 => :nsid,                # RFC 5001 - Name Server Identifier
-    4 => :reserved4,           # Reserved
-    5 => :dau,                 # RFC 6975 - DNSSEC Algorithm Understood
-    6 => :dhu,                 # RFC 6975 - DS Hash Understood
-    7 => :n3u,                 # RFC 6975 - NSEC3 Hash Understood
-    8 => :edns_client_subnet,  # RFC 7871 - Client Subnet
-    9 => :edns_expire,         # RFC 7314 - EDNS Expire
-    10 => :cookie,             # RFC 7873 - DNS Cookie
-    11 => :edns_tcp_keepalive, # RFC 7828 - TCP Keepalive
-    12 => :padding,            # RFC 7830 - Padding
-    13 => :chain,              # RFC 7901 - CHAIN Query
-    14 => :edns_key_tag,       # RFC 8145 - Key Tag
-    15 => :extended_dns_error, # RFC 8914 - Extended DNS Error
-    16 => :edns_client_tag,    # draft-bellis-dnsop-edns-tags - Client Tag
-    17 => :edns_server_tag,    # draft-bellis-dnsop-edns-tags - Server Tag
-    18 => :report_channel,     # Apple - DNS Reporting
-    19 => :zoneversion,        # Apple - Zone Version
-    20_292 => :umbrella_ident, # Cisco Umbrella - Umbrella Identifier
-    26_946 => :deviceid        # DSL Forum - Device ID
+    # Reserved
+    0 => :reserved,
+    # Apple - Long-lived query
+    1 => :llq,
+    # RFC 4761 - Update Lease
+    2 => :update_lease,
+    # RFC 5001 - Name Server Identifier
+    3 => :nsid,
+    # Reserved
+    4 => :reserved4,
+    # RFC 6975 - DNSSEC Algorithm Understood
+    5 => :dau,
+    # RFC 6975 - DS Hash Understood
+    6 => :dhu,
+    # RFC 6975 - NSEC3 Hash Understood
+    7 => :n3u,
+    # RFC 7871 - Client Subnet
+    8 => :edns_client_subnet,
+    # RFC 7314 - EDNS Expire
+    9 => :edns_expire,
+    # RFC 7873 - DNS Cookie
+    10 => :cookie,
+    # RFC 7828 - TCP Keepalive
+    11 => :edns_tcp_keepalive,
+    # RFC 7830 - Padding
+    12 => :padding,
+    # RFC 7901 - CHAIN Query
+    13 => :chain,
+    # RFC 8145 - Key Tag
+    14 => :edns_key_tag,
+    # RFC 8914 - Extended DNS Error
+    15 => :extended_dns_error,
+    # draft-bellis-dnsop-edns-tags - Client Tag
+    16 => :edns_client_tag,
+    # draft-bellis-dnsop-edns-tags - Server Tag
+    17 => :edns_server_tag,
+    # Apple - DNS Reporting
+    18 => :report_channel,
+    # Apple - Zone Version
+    19 => :zoneversion,
+    # Cisco Umbrella - Umbrella Identifier
+    20_292 => :umbrella_ident,
+    # DSL Forum - Device ID
+    26_946 => :deviceid
   }
 
   @option_code_map for {k, v} <- @option_map, into: %{}, do: {v, k}

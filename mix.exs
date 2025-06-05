@@ -10,7 +10,7 @@ defmodule Tenbin.DNS.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      
+
       # Documentation
       name: "Tenbin.DNS",
       description: "DNS packet parsing and creation library for Elixir",
@@ -53,10 +53,10 @@ defmodule Tenbin.DNS.MixProject do
         "docs/EDNS_NAMING_CONVENTION.md"
       ],
       groups_for_extras: [
-        "Guides": ~r/docs\/.*/
+        Guides: ~r/docs\/.*/
       ],
       groups_for_modules: [
-        "Core": [Tenbin.DNS, DNSpacket, DNS]
+        Core: [Tenbin.DNS, DNSpacket, DNS]
       ],
       authors: ["Toshihiko SHIMOKAWA"]
     ]

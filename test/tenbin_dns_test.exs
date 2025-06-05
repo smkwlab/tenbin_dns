@@ -53,7 +53,7 @@ defmodule Tenbin.DNSTest do
       packet = %DNSpacket{
         id: 0x1825,
         rd: 1,
-        question: [%{qname: "gmail.com.", qtype: :any, qclass: :in}],
+        question: [%{qname: "gmail.com.", qtype: :any, qclass: :in}]
       }
 
       assert DNSpacket.create(packet) ==
@@ -88,7 +88,7 @@ defmodule Tenbin.DNSTest do
                   minimum: 60
                 }
               }
-            ],
+            ]
           })
       ]
     end
@@ -115,12 +115,24 @@ defmodule Tenbin.DNSTest do
     test "parse handles empty domain names" do
       # Test packet with empty question section
       empty_question_packet = <<
-        0x18, 0x25,  # ID
-        0x01, 0x00,  # Flags (QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0)
-        0x00, 0x00,  # QDCOUNT = 0
-        0x00, 0x00,  # ANCOUNT = 0
-        0x00, 0x00,  # NSCOUNT = 0
-        0x00, 0x00   # ARCOUNT = 0
+        # ID
+        0x18,
+        0x25,
+        # Flags (QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0)
+        0x01,
+        0x00,
+        # QDCOUNT = 0
+        0x00,
+        0x00,
+        # ANCOUNT = 0
+        0x00,
+        0x00,
+        # NSCOUNT = 0
+        0x00,
+        0x00,
+        # ARCOUNT = 0
+        0x00,
+        0x00
       >>
 
       parsed = DNSpacket.parse(empty_question_packet)
@@ -165,7 +177,8 @@ defmodule Tenbin.DNSTest do
       result = DNSpacket.create_rr(opt_record)
       assert is_binary(result)
       # Should have minimal OPT record structure
-      assert byte_size(result) >= 11  # Minimum OPT record size
+      # Minimum OPT record size
+      assert byte_size(result) >= 11
     end
 
     # Test removed - pointer loop handling would require timeout protection
@@ -175,13 +188,15 @@ defmodule Tenbin.DNSTest do
       max_string = String.duplicate("x", 255)
       result = DNSpacket.create_character_string(max_string)
 
-      assert byte_size(result) == 256  # 1 byte length + 255 bytes data
+      # 1 byte length + 255 bytes data
+      assert byte_size(result) == 256
       assert binary_part(result, 0, 1) == <<255>>
     end
 
     test "rdata parsing with insufficient data" do
       # Test A record with insufficient rdata
-      insufficient_a_rdata = <<192, 168>>  # Only 2 bytes instead of 4
+      # Only 2 bytes instead of 4
+      insufficient_a_rdata = <<192, 168>>
 
       # This should return the default fallback instead of raising
       result = DNSpacket.parse_rdata(insufficient_a_rdata, :a, :in, <<>>)
@@ -198,12 +213,14 @@ defmodule Tenbin.DNSTest do
       assert DNS.type(15) == :mx
       assert DNS.type(16) == :txt
       assert DNS.type(28) == :aaaa
-      assert DNS.type(41) == :opt  # This line was not covered
+      # This line was not covered
+      assert DNS.type(41) == :opt
       assert DNS.type(255) == :any
 
       # Test fallback to Map.get for non-optimized types
       assert DNS.type(6) == :soa
-      assert DNS.type(999) == nil  # Non-existent type
+      # Non-existent type
+      assert DNS.type(999) == nil
     end
 
     test "DNS.type_code/1 covers all optimized pattern matching clauses" do
@@ -219,7 +236,8 @@ defmodule Tenbin.DNSTest do
 
       # Test fallback to Map.get for non-optimized types
       assert DNS.type_code(:soa) == 6
-      assert DNS.type_code(:invalid) == nil  # Non-existent type
+      # Non-existent type
+      assert DNS.type_code(:invalid) == nil
     end
 
     test "DNS.class/1 covers all optimized pattern matching clauses" do
@@ -229,7 +247,8 @@ defmodule Tenbin.DNSTest do
 
       # Test fallback to Map.get for non-optimized classes
       assert DNS.class(2) == :cs
-      assert DNS.class(999) == nil  # Non-existent class
+      # Non-existent class
+      assert DNS.class(999) == nil
     end
 
     test "DNS.class_code/1 covers all optimized pattern matching clauses" do
@@ -239,7 +258,8 @@ defmodule Tenbin.DNSTest do
 
       # Test fallback to Map.get for non-optimized classes
       assert DNS.class_code(:cs) == 2
-      assert DNS.class_code(:invalid) == nil  # Non-existent class
+      # Non-existent class
+      assert DNS.class_code(:invalid) == nil
     end
   end
 end
