@@ -1,7 +1,4 @@
 defmodule Tenbin.DNS do
-  @external_resource "mix.exs"
-  @version Mix.Project.config()[:version]
-
   @moduledoc """
   DNS packet parsing and creation library for Elixir.
 
@@ -69,6 +66,9 @@ defmodule Tenbin.DNS do
   For detailed information about EDNS hybrid structure and naming conventions,
   see the [EDNS Naming Convention Guide](docs/EDNS_NAMING_CONVENTION.md).
   """
+
+  @external_resource "mix.exs"
+  @version Mix.Project.config()[:version]
 
   @doc """
   Returns the current version of Tenbin.DNS.
