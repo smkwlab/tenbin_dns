@@ -2658,6 +2658,7 @@ defmodule DNSpacketTest do
       edns_info = %{
         cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>
       }
+
       result = DNSpacket.create_edns_info_record(edns_info)
       assert length(result.rdata) == 1
       {option_type, option_data} = hd(result.rdata)
@@ -2670,6 +2671,7 @@ defmodule DNSpacketTest do
         extended_dns_error_info_code: 18,
         extended_dns_error_extra_text: "Filtered"
       }
+
       result = DNSpacket.create_edns_info_record(edns_info)
       assert length(result.rdata) == 1
       {option_type, option_data} = hd(result.rdata)
@@ -2682,6 +2684,7 @@ defmodule DNSpacketTest do
       edns_info = %{
         edns_tcp_keepalive_timeout: 300
       }
+
       result = DNSpacket.create_edns_info_record(edns_info)
       assert length(result.rdata) == 1
       {option_type, option_data} = hd(result.rdata)
@@ -2693,6 +2696,7 @@ defmodule DNSpacketTest do
       edns_info = %{
         dau_algorithms: [7, 8]
       }
+
       result = DNSpacket.create_edns_info_record(edns_info)
       assert length(result.rdata) == 1
       {option_type, option_data} = hd(result.rdata)
@@ -2704,6 +2708,7 @@ defmodule DNSpacketTest do
       edns_info = %{
         dhu_algorithms: [1, 2]
       }
+
       result = DNSpacket.create_edns_info_record(edns_info)
       assert length(result.rdata) == 1
       {option_type, option_data} = hd(result.rdata)
@@ -2715,6 +2720,7 @@ defmodule DNSpacketTest do
       edns_info = %{
         n3u_algorithms: [1]
       }
+
       result = DNSpacket.create_edns_info_record(edns_info)
       assert length(result.rdata) == 1
       {option_type, option_data} = hd(result.rdata)
@@ -2726,6 +2732,7 @@ defmodule DNSpacketTest do
       edns_info = %{
         nsid: <<0x80, 0x81, 0x82, 0x83>>
       }
+
       result = DNSpacket.create_edns_info_record(edns_info)
       assert length(result.rdata) == 1
       {option_type, option_data} = hd(result.rdata)
@@ -2745,10 +2752,10 @@ defmodule DNSpacketTest do
           extended_dns_error_extra_text: "Unsupported DS Digest Type"
         }
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0x1234
       assert parsed.edns_info.extended_dns_error_info_code == 21
       assert parsed.edns_info.extended_dns_error_extra_text == "Unsupported DS Digest Type"
@@ -2763,10 +2770,10 @@ defmodule DNSpacketTest do
           edns_tcp_keepalive_timeout: nil
         }
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0x5678
       assert parsed.edns_info.edns_tcp_keepalive_timeout == nil
     end
@@ -2780,10 +2787,10 @@ defmodule DNSpacketTest do
           edns_tcp_keepalive_timeout: 300
         }
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0x9ABC
       assert parsed.edns_info.edns_tcp_keepalive_timeout == 300
     end
@@ -2797,10 +2804,10 @@ defmodule DNSpacketTest do
           padding_length: 16
         }
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0xDEF0
       assert parsed.edns_info.padding_length == 16
     end
@@ -2816,10 +2823,10 @@ defmodule DNSpacketTest do
           n3u_algorithms: [1]
         }
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0x1357
       assert parsed.edns_info.dau_algorithms == [7, 8, 10]
       assert parsed.edns_info.dhu_algorithms == [1, 2, 4]
@@ -2835,6 +2842,7 @@ defmodule DNSpacketTest do
         port: 443,
         target: "target.example.com."
       }
+
       result = DNSpacket.create_rdata(rdata, :srv, :in)
       expected = <<10::16, 20::16, 443::16, 6, "target", 7, "example", 3, "com", 0>>
       assert result == expected
@@ -2849,6 +2857,7 @@ defmodule DNSpacketTest do
         regexp: "",
         replacement: "sip.example.com."
       }
+
       result = DNSpacket.create_rdata(rdata, :naptr, :in)
       expected = <<100::16, 10::16, 1, "S", 7, "SIP+D2U", 0, 3, "sip", 7, "example", 3, "com", 0>>
       assert result == expected
@@ -2861,6 +2870,7 @@ defmodule DNSpacketTest do
         algorithm: 7,
         public_key: <<1, 2, 3, 4>>
       }
+
       result = DNSpacket.create_rdata(rdata, :dnskey, :in)
       expected = <<256::16, 3, 7, 1, 2, 3, 4>>
       assert result == expected
@@ -2873,6 +2883,7 @@ defmodule DNSpacketTest do
         digest_type: 1,
         digest: <<0x9F, 0x6A, 0x2B, 0x96>>
       }
+
       result = DNSpacket.create_rdata(rdata, :ds, :in)
       expected = <<12345::16, 7, 1, 0x9F, 0x6A, 0x2B, 0x96>>
       assert result == expected
@@ -2883,6 +2894,7 @@ defmodule DNSpacketTest do
         next_domain_name: "next.example.com.",
         type_bit_maps: <<0, 1, 0x40>>
       }
+
       result = DNSpacket.create_rdata(rdata, :nsec, :in)
       expected = <<4, "next", 7, "example", 3, "com", 0, 0, 1, 0x40>>
       assert result == expected
@@ -2893,20 +2905,24 @@ defmodule DNSpacketTest do
         next_domain_name: "b.example.com.",
         type_bit_maps: [:a, :ns, :soa, :mx, :aaaa, :rrsig, :nsec, :dnskey]
       }
+
       result = DNSpacket.create_rdata(rdata, :nsec, :in)
       # Should create proper type bitmap representation
       assert is_binary(result)
-      assert byte_size(result) > 15  # Domain name + type bitmaps
+      # Domain name + type bitmaps
+      assert byte_size(result) > 15
     end
 
     test "parses NSEC record with type bitmaps" do
       # NSEC record with A, NS, SOA types in bitmap
       rdata = <<1, "b", 7, "example", 3, "com", 0, 0, 1, 0x40>>
       result = DNSpacket.parse_rdata(rdata, :nsec, :in, <<>>)
+
       expected = %{
         next_domain_name: "b.example.com.",
         type_bit_maps: [:a]
       }
+
       assert result == expected
     end
 
@@ -2916,6 +2932,7 @@ defmodule DNSpacketTest do
         target: "svc.example.com.",
         svc_params: %{1 => <<1, 187>>, 4 => <<192, 0, 2, 1>>}
       }
+
       result = DNSpacket.create_rdata(rdata, :svcb, :in)
       # Check that result is binary and has reasonable size
       assert is_binary(result)
@@ -2928,6 +2945,7 @@ defmodule DNSpacketTest do
         target: ".",
         svc_params: %{}
       }
+
       result = DNSpacket.create_rdata(rdata, :https, :in)
       # Just check that it's a binary with the priority and target
       assert is_binary(result)
@@ -2937,34 +2955,40 @@ defmodule DNSpacketTest do
     test "parses SRV record rdata" do
       rdata = <<10::16, 20::16, 443::16, 6, "target", 7, "example", 3, "com", 0>>
       result = DNSpacket.parse_rdata(rdata, :srv, :in, <<>>)
+
       expected = %{
         priority: 10,
         weight: 20,
         port: 443,
         target: "target.example.com."
       }
+
       assert result == expected
     end
 
     test "parses SVCB record rdata" do
       rdata = <<1::16, 3, "svc", 7, "example", 3, "com", 0, 1::16, 2::16, 1, 187>>
       result = DNSpacket.parse_rdata(rdata, :svcb, :in, <<>>)
+
       expected = %{
         priority: 1,
         target: "svc.example.com.",
         svc_params: %{alpn: [<<187>>]}
       }
+
       assert result == expected
     end
 
     test "parses HTTPS record rdata" do
       rdata = <<0::16, 0>>
       result = DNSpacket.parse_rdata(rdata, :https, :in, <<>>)
+
       expected = %{
         priority: 0,
         target: ".",
         svc_params: %{}
       }
+
       assert result == expected
     end
   end
@@ -3000,10 +3024,10 @@ defmodule DNSpacketTest do
         cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
         nsid: <<0x80, 0x81, 0x82, 0x83>>
       }
-      
+
       opt_record = DNSpacket.create_edns_info_record(edns_info)
       assert length(opt_record.rdata) == 2
-      
+
       # Check that both options are present
       option_types = Enum.map(opt_record.rdata, fn {type, _data} -> type end)
       assert :cookie in option_types
@@ -3018,7 +3042,7 @@ defmodule DNSpacketTest do
         ecs_source_prefix: 0,
         ecs_scope_prefix: 0
       }
-      
+
       opt_record = DNSpacket.create_edns_info_record(edns_info)
       ecs_data = hd(opt_record.rdata)
       ecs_result = elem(ecs_data, 1)
@@ -3046,10 +3070,10 @@ defmodule DNSpacketTest do
           }
         ]
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0x1111
       assert is_map(parsed.edns_info.unknown_options)
     end
@@ -3063,10 +3087,10 @@ defmodule DNSpacketTest do
           edns_expire: nil
         }
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0x2222
       # Just check that packet was parsed successfully
       assert is_struct(parsed, DNSpacket)
@@ -3080,10 +3104,10 @@ defmodule DNSpacketTest do
           chain_point_of_trust: "trust.example.com."
         }
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0x3333
       # Just check that packet was parsed successfully
       assert is_struct(parsed, DNSpacket)
@@ -3097,10 +3121,10 @@ defmodule DNSpacketTest do
           edns_key_tag_list: [12345, 67890]
         }
       }
-      
+
       binary = DNSpacket.create(packet)
       parsed = DNSpacket.parse(binary)
-      
+
       assert parsed.id == 0x4444
       # Just check that packet was parsed successfully
       assert is_struct(parsed, DNSpacket)
@@ -3116,7 +3140,7 @@ defmodule DNSpacketTest do
         report_channel_agent_domain: "agent.example.com.",
         update_lease_lease_time: 3600
       }
-      
+
       result = DNSpacket.create_edns_info_record(edns_info)
       # Should successfully create EDNS info record
       assert is_map(result)
@@ -3129,19 +3153,21 @@ defmodule DNSpacketTest do
       dname_result = DNSpacket.create_rdata(dname_rdata, :dname, :in)
       assert is_binary(dname_result)
       assert byte_size(dname_result) > 5
-      
+
       # RRSIG record  
       rrsig_rdata = %{
-        type_covered: 1,  # A record
+        # A record
+        type_covered: 1,
         algorithm: 8,
-        labels: 3, 
+        labels: 3,
         original_ttl: 3600,
-        signature_expiration: 1640995200,
-        signature_inception: 1640908800,
+        signature_expiration: 1_640_995_200,
+        signature_inception: 1_640_908_800,
         key_tag: 12345,
         signer_name: "example.com.",
         signature: <<1, 2, 3, 4, 5>>
       }
+
       rrsig_result = DNSpacket.create_rdata(rrsig_rdata, :rrsig, :in)
       assert is_binary(rrsig_result)
       assert byte_size(rrsig_result) > 20
@@ -3155,11 +3181,11 @@ defmodule DNSpacketTest do
         ipv4_hints: [{192, 168, 1, 1}, {10, 0, 0, 1}],
         ipv6_hints: [{0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}]
       }
-      
+
       result = DNSpacket.create_svc_params(params)
       assert is_binary(result)
       assert byte_size(result) > 10
-      
+
       # Test edge case with invalid input
       result_invalid = DNSpacket.create_svc_params("invalid")
       assert result_invalid == <<>>
@@ -3171,10 +3197,10 @@ defmodule DNSpacketTest do
         cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
         cookie_server: nil
       }
-      
+
       opt_record = DNSpacket.create_edns_info_record(edns_info)
       assert length(opt_record.rdata) == 1
-      
+
       {option_type, option_data} = hd(opt_record.rdata)
       assert option_type == :cookie
       assert option_data.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
@@ -3183,27 +3209,29 @@ defmodule DNSpacketTest do
 
     test "handles edge cases in record creation for coverage" do
       # Test various edge cases that increase coverage
-      
+
       # Test unknown record type fallback
       result1 = DNSpacket.create_rdata(%{data: <<1, 2, 3>>}, :unknown_type, :in)
       assert result1 == %{data: <<1, 2, 3>>}
-      
+
       # Test CAA record with different property tags
       caa_rdata = %{
         flag: 128,
         tag: "issue",
         value: "ca.example.net"
       }
+
       caa_result = DNSpacket.create_rdata(caa_rdata, :caa, :in)
       assert is_binary(caa_result)
       assert byte_size(caa_result) > 10
-      
+
       # Test empty SVCB parameters
       svcb_empty = %{
         priority: 0,
         target: ".",
         svc_params: %{}
       }
+
       svcb_result = DNSpacket.create_rdata(svcb_empty, :svcb, :in)
       assert is_binary(svcb_result)
     end
