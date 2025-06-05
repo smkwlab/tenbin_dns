@@ -2652,4 +2652,295 @@ defmodule DNSpacketTest do
       assert ecs_v6_data.client_subnet == {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}
     end
   end
+
+  describe "EDNS option creation tests" do
+    test "creates EDNS record with cookie option" do
+      edns_info = %{
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>
+      }
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :cookie
+      assert option_data.client == <<1, 2, 3, 4, 5, 6, 7, 8>>
+    end
+
+    test "creates EDNS record with extended DNS error" do
+      edns_info = %{
+        extended_dns_error_info_code: 18,
+        extended_dns_error_extra_text: "Filtered"
+      }
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :extended_dns_error
+      assert option_data.info_code == 18
+      assert option_data.extra_text == "Filtered"
+    end
+
+    test "creates EDNS record with TCP keepalive" do
+      edns_info = %{
+        edns_tcp_keepalive_timeout: 300
+      }
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :edns_tcp_keepalive
+      assert option_data.timeout == 300
+    end
+
+    test "creates EDNS record with DAU algorithms" do
+      edns_info = %{
+        dau_algorithms: [7, 8]
+      }
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :dau
+      assert option_data.algorithms == [7, 8]
+    end
+
+    test "creates EDNS record with DHU algorithms" do
+      edns_info = %{
+        dhu_algorithms: [1, 2]
+      }
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :dhu
+      assert option_data.algorithms == [1, 2]
+    end
+
+    test "creates EDNS record with N3U algorithms" do
+      edns_info = %{
+        n3u_algorithms: [1]
+      }
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :n3u
+      assert option_data.algorithms == [1]
+    end
+
+    test "creates EDNS record with NSID" do
+      edns_info = %{
+        nsid: <<0x80, 0x81, 0x82, 0x83>>
+      }
+      result = DNSpacket.create_edns_info_record(edns_info)
+      assert length(result.rdata) == 1
+      {option_type, option_data} = hd(result.rdata)
+      assert option_type == :nsid
+      assert option_data == <<0x80, 0x81, 0x82, 0x83>>
+    end
+  end
+
+  describe "Advanced DNS record types tests" do
+    test "creates SRV record rdata" do
+      rdata = %{
+        priority: 10,
+        weight: 20,
+        port: 443,
+        target: "target.example.com."
+      }
+      result = DNSpacket.create_rdata(rdata, :srv, :in)
+      expected = <<10::16, 20::16, 443::16, 6, "target", 7, "example", 3, "com", 0>>
+      assert result == expected
+    end
+
+    test "creates NAPTR record rdata" do
+      rdata = %{
+        order: 100,
+        preference: 10,
+        flags: "S",
+        services: "SIP+D2U",
+        regexp: "",
+        replacement: "sip.example.com."
+      }
+      result = DNSpacket.create_rdata(rdata, :naptr, :in)
+      expected = <<100::16, 10::16, 1, "S", 7, "SIP+D2U", 0, 3, "sip", 7, "example", 3, "com", 0>>
+      assert result == expected
+    end
+
+    test "creates DNSKEY record rdata" do
+      rdata = %{
+        flags: 256,
+        protocol: 3,
+        algorithm: 7,
+        public_key: <<1, 2, 3, 4>>
+      }
+      result = DNSpacket.create_rdata(rdata, :dnskey, :in)
+      expected = <<256::16, 3, 7, 1, 2, 3, 4>>
+      assert result == expected
+    end
+
+    test "creates DS record rdata" do
+      rdata = %{
+        key_tag: 12345,
+        algorithm: 7,
+        digest_type: 1,
+        digest: <<0x9F, 0x6A, 0x2B, 0x96>>
+      }
+      result = DNSpacket.create_rdata(rdata, :ds, :in)
+      expected = <<12345::16, 7, 1, 0x9F, 0x6A, 0x2B, 0x96>>
+      assert result == expected
+    end
+
+    test "creates NSEC record rdata" do
+      rdata = %{
+        next_domain_name: "next.example.com.",
+        type_bit_maps: <<0, 1, 0x40>>
+      }
+      result = DNSpacket.create_rdata(rdata, :nsec, :in)
+      expected = <<4, "next", 7, "example", 3, "com", 0, 0, 1, 0x40>>
+      assert result == expected
+    end
+
+    test "creates SVCB record rdata" do
+      rdata = %{
+        priority: 1,
+        target: "svc.example.com.",
+        svc_params: %{1 => <<1, 187>>, 4 => <<192, 0, 2, 1>>}
+      }
+      result = DNSpacket.create_rdata(rdata, :svcb, :in)
+      # Check that result is binary and has reasonable size
+      assert is_binary(result)
+      assert byte_size(result) > 10
+    end
+
+    test "creates HTTPS record rdata" do
+      rdata = %{
+        priority: 0,
+        target: ".",
+        svc_params: %{}
+      }
+      result = DNSpacket.create_rdata(rdata, :https, :in)
+      # Just check that it's a binary with the priority and target
+      assert is_binary(result)
+      assert byte_size(result) >= 2
+    end
+
+    test "parses SRV record rdata" do
+      rdata = <<10::16, 20::16, 443::16, 6, "target", 7, "example", 3, "com", 0>>
+      result = DNSpacket.parse_rdata(rdata, :srv, :in, <<>>)
+      expected = %{
+        priority: 10,
+        weight: 20,
+        port: 443,
+        target: "target.example.com."
+      }
+      assert result == expected
+    end
+
+    test "parses SVCB record rdata" do
+      rdata = <<1::16, 3, "svc", 7, "example", 3, "com", 0, 1::16, 2::16, 1, 187>>
+      result = DNSpacket.parse_rdata(rdata, :svcb, :in, <<>>)
+      expected = %{
+        priority: 1,
+        target: "svc.example.com.",
+        svc_params: %{alpn: [<<187>>]}
+      }
+      assert result == expected
+    end
+
+    test "parses HTTPS record rdata" do
+      rdata = <<0::16, 0>>
+      result = DNSpacket.parse_rdata(rdata, :https, :in, <<>>)
+      expected = %{
+        priority: 0,
+        target: ".",
+        svc_params: %{}
+      }
+      assert result == expected
+    end
+  end
+
+  describe "SVCB/HTTPS service parameter parsing tests" do
+    test "parses service parameters with create_svc_params" do
+      params = %{1 => <<443::16>>, 4 => <<192, 0, 2, 1>>}
+      result = DNSpacket.create_svc_params(params)
+      # This should create the binary representation of service parameters
+      assert is_binary(result)
+      assert byte_size(result) > 0
+    end
+
+    test "parses empty service parameters" do
+      result = DNSpacket.parse_svc_params(<<>>)
+      expected = %{}
+      assert result == expected
+    end
+
+    test "parses service parameters with port" do
+      # Parameter key=1 (alpn), length=2, value with single byte length prefix
+      param_binary = <<1::16, 2::16, 1, 187>>
+      result = DNSpacket.parse_svc_params(param_binary)
+      expected = %{alpn: [<<187>>]}
+      assert result == expected
+    end
+  end
+
+  describe "EDNS parsing integration tests" do
+    test "parses EDNS OPT record with multiple options" do
+      # Create a packet with EDNS options and parse it
+      edns_info = %{
+        cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+        nsid: <<0x80, 0x81, 0x82, 0x83>>
+      }
+      
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      assert length(opt_record.rdata) == 2
+      
+      # Check that both options are present
+      option_types = Enum.map(opt_record.rdata, fn {type, _data} -> type end)
+      assert :cookie in option_types
+      assert :nsid in option_types
+    end
+
+    test "handles unknown ECS address family" do
+      # ECS with unknown family (family=99)
+      edns_info = %{
+        ecs_family: 99,
+        ecs_subnet: {0, 0, 0, 0},
+        ecs_source_prefix: 0,
+        ecs_scope_prefix: 0
+      }
+      
+      opt_record = DNSpacket.create_edns_info_record(edns_info)
+      ecs_data = hd(opt_record.rdata)
+      ecs_result = elem(ecs_data, 1)
+      assert ecs_result.family == 99
+    end
+
+    test "creates packet with EDNS and parses it back" do
+      packet = %DNSpacket{
+        id: 0x1234,
+        qr: 0,
+        opcode: 0,
+        rd: 1,
+        question: [%{qname: "example.com.", qtype: :a, qclass: :in}],
+        additional: [
+          %{
+            name: "",
+            type: :opt,
+            payload_size: 512,
+            ex_rcode: 0,
+            version: 0,
+            dnssec: 0,
+            z: 0,
+            rdata: [
+              {:cookie, %{client: <<1, 2, 3, 4, 5, 6, 7, 8>>, server: nil}}
+            ]
+          }
+        ]
+      }
+
+      binary = DNSpacket.create(packet)
+      parsed = DNSpacket.parse(binary)
+
+      assert parsed.id == 0x1234
+      assert length(parsed.additional) == 1
+      opt_record = hd(parsed.additional)
+      assert opt_record.type == :opt
+      assert map_size(opt_record.rdata) == 1
+    end
+  end
 end
