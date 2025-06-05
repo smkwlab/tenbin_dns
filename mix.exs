@@ -56,10 +56,10 @@ defmodule Tenbin.DNS.MixProject do
         "docs/EDNS_NAMING_CONVENTION.md"
       ],
       groups_for_extras: [
-        "Guides": ~r/docs\/.*/
+        Guides: ~r/docs\/.*/
       ],
       groups_for_modules: [
-        "Core": [Tenbin.DNS, DNSpacket, DNS]
+        Core: [Tenbin.DNS, DNSpacket, DNS]
       ],
       authors: ["Toshihiko SHIMOKAWA"]
     ]
