@@ -728,6 +728,7 @@ defmodule DNSpacket do
   # credo:disable-for-this-file Credo.Check.Refactor.ABCSize
   # credo:disable-for-this-file Credo.Check.Refactor.CyclomaticComplexity
   # credo:disable-for-this-file Credo.Check.Refactor.ReusedVariableNames
+  # credo:disable-for-this-file Credo.Check.Refactor.NegatedIsNil
   defp convert_edns_hybrid_to_rdata(edns_info) do
     options = []
 
