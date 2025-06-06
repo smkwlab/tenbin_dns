@@ -38,16 +38,6 @@ jobs:
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
         restore-keys: ${{ runner.os }}-mix-
         
-    - name: Restore PLT cache
-      uses: actions/cache@v4
-      id: plt_cache
-      with:
-        path: priv/plts
-        key: ${{ runner.os }}-plt-27.0-1.18.3-${{ hashFiles('**/mix.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-plt-27.0-1.18.3-
-          ${{ runner.os }}-plt-
-        
     - name: Install dependencies
       run: mix deps.get
       
@@ -100,16 +90,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-build-${{ matrix.otp }}-${{ matrix.elixir }}-
           ${{ runner.os }}-build-
-        
-    - name: Restore PLT cache
-      uses: actions/cache@v4
-      id: plt_cache
-      with:
-        path: priv/plts
-        key: ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-
-          ${{ runner.os }}-plt-
         
     - name: Install dependencies
       run: mix deps.get
