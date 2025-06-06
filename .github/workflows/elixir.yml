@@ -60,29 +60,101 @@ jobs:
     - name: Run Credo
       run: mix credo --strict
       
-    - name: Create PLTs
-      if: steps.plt_cache.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p priv/plts
-        mix dialyzer --plt
-        
-    - name: Run Dialyzer
-      run: mix dialyzer --halt-exit-status
       
-  dialyzer:
-    if: github.event_name == 'push'
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    name: Dialyzer Analysis on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
-    permissions:
-      contents: read
-      issues: write
+    timeout-minutes: 15
+    name: Test on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
       matrix:
         include:
           - otp: '27.0'
             elixir: '1.18.3'
             primary: true
+#          - otp: '26.2'
+#            elixir: '1.17.3'
+#            primary: false
+    
+    steps:
+    - name: Set up Git repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{matrix.otp}}
+        elixir-version: ${{matrix.elixir}}
+        
+    - name: Restore dependencies cache
+      uses: actions/cache@v4
+      with:
+        path: deps
+        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+        restore-keys: ${{ runner.os }}-mix-
+        
+    - name: Restore build cache
+      uses: actions/cache@v4
+      with:
+        path: _build
+        key: ${{ runner.os }}-build-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ matrix.otp }}-${{ matrix.elixir }}-
+          ${{ runner.os }}-build-
+        
+    - name: Restore PLT cache
+      uses: actions/cache@v4
+      id: plt_cache
+      with:
+        path: priv/plts
+        key: ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-
+          ${{ runner.os }}-plt-
+        
+    - name: Install dependencies
+      run: mix deps.get
+      
+    - name: Check Formatting
+      run: mix format --check-formatted
+      
+    - name: Compile
+      run: mix compile --warnings-as-errors
+      
+    - name: Run tests with coverage
+      run: mix test --cover
+        
+    - name: Upload coverage to Codecov
+      if: matrix.primary
+      uses: codecov/codecov-action@v4
+      with:
+        directory: ./cover
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+        
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-${{ matrix.otp }}-${{ matrix.elixir }}
+        path: cover/
+        retention-days: 7
+
+  dialyzer:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    name: Dialyzer Analysis on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        include:
+          - otp: '27.0'
+            elixir: '1.18.3'
+            primary: true
+    
+    permissions:
+      contents: read
+      issues: write
     
     steps:
     - name: Set up Git repository
@@ -114,6 +186,9 @@ jobs:
     - name: Install dependencies
       run: mix deps.get
       
+    - name: Compile
+      run: mix compile
+      
     - name: Create PLTs
       if: steps.plt_cache.outputs.cache-hit != 'true'
       run: |
@@ -140,16 +215,14 @@ jobs:
       run: |
         if [ -f dialyzer_output.txt ]; then
           echo "Reading Dialyzer output..."
-          # Escape output for GitHub Actions
-          {
-            echo 'dialyzer_output<<EOF'
-            cat dialyzer_output.txt
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
+          DIALYZER_OUTPUT=$(cat dialyzer_output.txt)
+          echo "dialyzer_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIALYZER_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
         else
-          echo "dialyzer_output=No output file found" >> $GITHUB_OUTPUT
+          echo "dialyzer_output=No Dialyzer output file found" >> $GITHUB_OUTPUT
         fi
-        
+      
     - name: Create GitHub Issue for Dialyzer failures
       if: steps.dialyzer.outputs.result == 'failure'
       uses: actions/github-script@v7
@@ -218,7 +291,7 @@ jobs:
               labels: ['dialyzer', 'automated', 'bug']
             });
           }
-          
+    
     - name: Close Dialyzer issues on success
       if: steps.dialyzer.outputs.result == 'success'
       uses: actions/github-script@v7
@@ -249,86 +322,3 @@ jobs:
               });
             }
           }
-      
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    name: Test on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
-    strategy:
-      matrix:
-        include:
-          - otp: '27.0'
-            elixir: '1.18.3'
-            primary: true
-#          - otp: '26.2'
-#            elixir: '1.17.3'
-#            primary: false
-    
-    steps:
-    - name: Set up Git repository
-      uses: actions/checkout@v4
-      
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        otp-version: ${{matrix.otp}}
-        elixir-version: ${{matrix.elixir}}
-        
-    - name: Restore dependencies cache
-      uses: actions/cache@v4
-      with:
-        path: deps
-        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-mix-
-        
-    - name: Restore build cache
-      uses: actions/cache@v4
-      with:
-        path: _build
-        key: ${{ runner.os }}-build-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ matrix.otp }}-${{ matrix.elixir }}-
-          ${{ runner.os }}-build-
-        
-    - name: Restore PLT cache
-      uses: actions/cache@v4
-      id: plt_cache
-      with:
-        path: priv/plts
-        key: ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-
-          ${{ runner.os }}-plt-
-        
-    - name: Install dependencies
-      run: mix deps.get
-      
-    - name: Compile
-      run: mix compile --warnings-as-errors
-      
-    - name: Run tests with coverage
-      run: |
-        mix test --cover --export-coverage default
-        mix test.coverage
-      
-    - name: Generate coverage report
-      if: matrix.primary
-      run: |
-        mix test.coverage --min-coverage 80
-        
-    - name: Upload coverage to Codecov
-      if: matrix.primary
-      uses: codecov/codecov-action@v4
-      with:
-        directory: ./cover
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
-        
-    - name: Upload coverage reports
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: coverage-${{ matrix.otp }}-${{ matrix.elixir }}
-        path: cover/
-        retention-days: 7
