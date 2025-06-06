@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 # Cancel in-progress runs for the same PR/branch
 concurrency:
@@ -67,6 +68,187 @@ jobs:
         
     - name: Run Dialyzer
       run: mix dialyzer --halt-exit-status
+      
+  dialyzer:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    name: Dialyzer Analysis on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      matrix:
+        include:
+          - otp: '27.0'
+            elixir: '1.18.3'
+            primary: true
+    
+    steps:
+    - name: Set up Git repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{matrix.otp}}
+        elixir-version: ${{matrix.elixir}}
+        
+    - name: Restore dependencies cache
+      uses: actions/cache@v4
+      with:
+        path: deps
+        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+        restore-keys: ${{ runner.os }}-mix-
+        
+    - name: Restore PLT cache
+      uses: actions/cache@v4
+      id: plt_cache
+      with:
+        path: priv/plts
+        key: ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-
+          ${{ runner.os }}-plt-
+        
+    - name: Install dependencies
+      run: mix deps.get
+      
+    - name: Create PLTs
+      if: steps.plt_cache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p priv/plts
+        mix dialyzer --plt
+        
+    - name: Run Dialyzer with output capture
+      id: dialyzer
+      run: |
+        echo "Running Dialyzer analysis..."
+        if mix dialyzer --format dialyxir > dialyzer_output.txt 2>&1; then
+          echo "result=success" >> $GITHUB_OUTPUT
+          echo "Dialyzer completed successfully"
+        else
+          echo "result=failure" >> $GITHUB_OUTPUT
+          echo "Dialyzer found issues"
+        fi
+        echo "output_file=dialyzer_output.txt" >> $GITHUB_OUTPUT
+      continue-on-error: true
+      
+    - name: Read Dialyzer output
+      id: read_output
+      if: always()
+      run: |
+        if [ -f dialyzer_output.txt ]; then
+          echo "Reading Dialyzer output..."
+          # Escape output for GitHub Actions
+          {
+            echo 'dialyzer_output<<EOF'
+            cat dialyzer_output.txt
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+        else
+          echo "dialyzer_output=No output file found" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create GitHub Issue for Dialyzer failures
+      if: steps.dialyzer.outputs.result == 'failure'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const dialyzerOutput = `${{ steps.read_output.outputs.dialyzer_output }}`;
+          
+          const issueTitle = `Dialyzer warnings/errors in main branch (${context.sha.substring(0, 7)})`;
+          const issueBody = `
+          ## Dialyzer Analysis Results
+          
+          **Commit:** ${context.sha}
+          **Branch:** ${context.ref}
+          **Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+          **OTP/Elixir:** ${{ matrix.otp }}/${{ matrix.elixir }}
+          
+          ### Output:
+          \`\`\`
+          ${dialyzerOutput}
+          \`\`\`
+          
+          Please review and fix these Dialyzer warnings/errors.
+          
+          ---
+          *This issue was automatically created by the Elixir CI workflow.*
+          `;
+          
+          // Check if there's already an open issue for Dialyzer
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: 'dialyzer,automated'
+          });
+          
+          const existingIssue = issues.data.find(issue => 
+            issue.title.includes('Dialyzer warnings/errors in main branch')
+          );
+          
+          if (existingIssue) {
+            // Update existing issue
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              body: `## New Dialyzer Issues Found
+              
+              **Commit:** ${context.sha}
+              **Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+              **OTP/Elixir:** ${{ matrix.otp }}/${{ matrix.elixir }}
+              
+              ### Output:
+              \`\`\`
+              ${dialyzerOutput}
+              \`\`\`
+              `
+            });
+          } else {
+            // Create new issue
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: issueTitle,
+              body: issueBody,
+              labels: ['dialyzer', 'automated', 'bug']
+            });
+          }
+          
+    - name: Close Dialyzer issues on success
+      if: steps.dialyzer.outputs.result == 'success'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          // Close any existing Dialyzer issues if analysis passed
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: 'dialyzer,automated'
+          });
+          
+          for (const issue of issues.data) {
+            if (issue.title.includes('Dialyzer warnings/errors in main branch')) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `✅ Dialyzer analysis passed successfully in commit ${context.sha.substring(0, 7)} (OTP ${{ matrix.otp }}/Elixir ${{ matrix.elixir }}). Closing this issue.`
+              });
+              
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+            }
+          }
       
   test:
     runs-on: ubuntu-latest

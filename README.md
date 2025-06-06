@@ -155,6 +155,38 @@ mix dialyzer
 mix docs
 ```
 
+## Git Hooks
+
+This project uses [Lefthook](https://github.com/evilmartians/lefthook) for Git hooks management to ensure code quality before commits.
+
+### Installation
+
+```bash
+# Install Lefthook (if not already installed)
+# On macOS with Homebrew:
+brew install lefthook
+
+# On other systems:
+# See https://github.com/evilmartians/lefthook/blob/master/docs/install.md
+
+# Install hooks in the repository
+lefthook install
+```
+
+### Pre-commit checks
+
+The following checks run automatically before each commit:
+1. **Code formatting** - `mix format` (auto-fixes files)
+2. **Tests** - `mix test --cover` (with coverage analysis)
+3. **Code quality** - `mix credo --strict`
+
+### Skipping hooks
+
+If you need to skip hooks for an emergency commit:
+```bash
+LEFTHOOK=0 git commit -m "Emergency fix"
+```
+
 ## Performance
 
 Tenbin.DNS includes optimizations for DNS operations:
