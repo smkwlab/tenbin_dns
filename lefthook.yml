@@ -1,0 +1,28 @@
+# See https://github.com/evilmartians/lefthook
+pre-commit:
+  commands:
+    format:
+      priority: 1
+      glob: "*.{ex,exs}"
+      run: mix format
+      stage_fixed: true
+      fail_text: "Code formatting applied. Please review and commit the changes."
+    tests:
+      priority: 2
+      run: mix test --cover
+      fail_text: "Tests failed. Please fix failing tests before committing."
+    credo:
+      priority: 3
+      run: mix credo --strict
+      fail_text: "Credo checks failed. Please fix code quality issues before committing."
+
+# Optional: Skip hooks with LEFTHOOK=0 git commit
+skip_output:
+  - meta
+  - success
+
+output:
+  - execution
+  - summary
+
+colors: true
