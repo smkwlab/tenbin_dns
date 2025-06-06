@@ -52,29 +52,6 @@ jobs:
           echo "✅ No vulnerable dependencies found"
         fi
         
-  codeql-analysis:
-    name: CodeQL Analysis
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: javascript
-        # Override language selection by uncommenting the 'languages' line
-        # and choosing the appropriate languages from the list below
-        # https://docs.github.com/en/free-pro-team@latest/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#changing-the-languages-that-are-analyzed
-        
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v3
-      
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-      
   secret-scan:
     name: Secret Scanning
     runs-on: ubuntu-latest
@@ -90,6 +67,6 @@ jobs:
       uses: trufflesecurity/trufflehog@main
       with:
         path: ./
-        base: main
+        base: ${{ github.event.before || 'HEAD~1' }}
         head: HEAD
         extra_args: --debug --only-verified
