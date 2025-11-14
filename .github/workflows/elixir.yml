@@ -137,8 +137,8 @@ jobs:
     - name: Set up Elixir
       uses: erlef/setup-beam@v1
       with:
-        otp-version: ${{matrix.otp}}
-        elixir-version: ${{matrix.elixir}}
+        otp-version: ${{ matrix.otp }}
+        elixir-version: ${{ matrix.elixir }}
 
     - name: Restore dependencies cache
       uses: actions/cache@v4
@@ -202,7 +202,6 @@ jobs:
       uses: actions/github-script@v7
       with:
         script: |
-          const fs = require('fs');
           const dialyzerOutput = `${{ steps.read_output.outputs.dialyzer_output }}`;
 
           const issueTitle = `Dialyzer warnings/errors in main branch (${context.sha.substring(0, 7)})`;
