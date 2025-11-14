@@ -317,8 +317,7 @@ defmodule DNSpacket do
       end
 
     <<0, DNS.type_code(:opt)::16, rr.payload_size::16, rr.ex_rcode::8, rr.version::8,
-      rr.dnssec::1,
-      rr.z::15>> <>
+      rr.dnssec::1, rr.z::15>> <>
       add_rdlength(rdata_binary)
   end
 
@@ -1057,8 +1056,7 @@ defmodule DNSpacket do
   @doc false
   def create_rdata(rdata, :rrsig, _) do
     <<rdata.type_covered::16, rdata.algorithm::8, rdata.labels::8, rdata.original_ttl::32,
-      rdata.signature_expiration::32, rdata.signature_inception::32,
-      rdata.key_tag::16>> <>
+      rdata.signature_expiration::32, rdata.signature_inception::32, rdata.key_tag::16>> <>
       create_domain_name(rdata.signer_name) <>
       <<rdata.signature::binary>>
   end
