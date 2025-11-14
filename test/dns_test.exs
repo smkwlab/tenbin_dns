@@ -3,14 +3,7 @@ defmodule DNSTest do
 
   describe "type functions" do
     test "type/1 returns correct atom for valid type codes" do
-      assert DNS.type(1) == :a
-      assert DNS.type(2) == :ns
-      assert DNS.type(5) == :cname
-      assert DNS.type(15) == :mx
-      assert DNS.type(16) == :txt
-      assert DNS.type(28) == :aaaa
-      assert DNS.type(41) == :opt
-      assert DNS.type(255) == :any
+      DNSTestHelper.assert_common_types()
       assert DNS.type(257) == :caa
     end
 
@@ -21,14 +14,7 @@ defmodule DNSTest do
     end
 
     test "type_code/1 returns correct code for valid atoms" do
-      assert DNS.type_code(:a) == 1
-      assert DNS.type_code(:ns) == 2
-      assert DNS.type_code(:cname) == 5
-      assert DNS.type_code(:mx) == 15
-      assert DNS.type_code(:txt) == 16
-      assert DNS.type_code(:aaaa) == 28
-      assert DNS.type_code(:opt) == 41
-      assert DNS.type_code(:any) == 255
+      DNSTestHelper.assert_common_type_codes()
       assert DNS.type_code(:caa) == 257
     end
 

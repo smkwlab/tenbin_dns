@@ -207,15 +207,7 @@ defmodule Tenbin.DNSTest do
   describe "DNS module coverage tests" do
     test "DNS.type/1 covers all optimized pattern matching clauses" do
       # Test the optimized pattern matching clauses that were added for performance
-      assert DNS.type(1) == :a
-      assert DNS.type(2) == :ns
-      assert DNS.type(5) == :cname
-      assert DNS.type(15) == :mx
-      assert DNS.type(16) == :txt
-      assert DNS.type(28) == :aaaa
-      # This line was not covered
-      assert DNS.type(41) == :opt
-      assert DNS.type(255) == :any
+      DNSTestHelper.assert_common_types()
 
       # Test fallback to Map.get for non-optimized types
       assert DNS.type(6) == :soa
@@ -225,14 +217,7 @@ defmodule Tenbin.DNSTest do
 
     test "DNS.type_code/1 covers all optimized pattern matching clauses" do
       # Test the optimized pattern matching clauses
-      assert DNS.type_code(:a) == 1
-      assert DNS.type_code(:ns) == 2
-      assert DNS.type_code(:cname) == 5
-      assert DNS.type_code(:mx) == 15
-      assert DNS.type_code(:txt) == 16
-      assert DNS.type_code(:aaaa) == 28
-      assert DNS.type_code(:opt) == 41
-      assert DNS.type_code(:any) == 255
+      DNSTestHelper.assert_common_type_codes()
 
       # Test fallback to Map.get for non-optimized types
       assert DNS.type_code(:soa) == 6
