@@ -20,37 +20,37 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     name: Code Quality
-    
+
     steps:
     - name: Set up Git repository
       uses: actions/checkout@v4
-      
+
     - name: Set up Elixir
       uses: erlef/setup-beam@v1
       with:
-        otp-version: '27.0'
-        elixir-version: '1.18.3'
-        
+        otp-version: '28.1.1'
+        elixir-version: '1.19.3'
+
     - name: Restore dependencies cache
       uses: actions/cache@v4
       with:
         path: deps
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
         restore-keys: ${{ runner.os }}-mix-
-        
+
     - name: Install dependencies
       run: mix deps.get
-      
+
     - name: Check Formatting
       run: mix format --check-formatted
-      
+
     - name: Compile
       run: mix compile --warnings-as-errors
-      
+
     - name: Run Credo
       run: mix credo --strict
-      
-      
+
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -58,30 +58,30 @@ jobs:
     strategy:
       matrix:
         include:
-          - otp: '27.0'
-            elixir: '1.18.3'
+          - otp: '27.3.4.4'
+            elixir: '1.17.3'
             primary: true
-#          - otp: '26.2'
-#            elixir: '1.17.3'
-#            primary: false
-    
+          - otp: '28.1.1'
+            elixir: '1.19.3'
+            primary: false
+
     steps:
     - name: Set up Git repository
       uses: actions/checkout@v4
-      
+
     - name: Set up Elixir
       uses: erlef/setup-beam@v1
       with:
         otp-version: ${{ matrix.otp }}
         elixir-version: ${{ matrix.elixir }}
-        
+
     - name: Restore dependencies cache
       uses: actions/cache@v4
       with:
         path: deps
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
         restore-keys: ${{ runner.os }}-mix-
-        
+
     - name: Restore build cache
       uses: actions/cache@v4
       with:
@@ -90,19 +90,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-build-${{ matrix.otp }}-${{ matrix.elixir }}-
           ${{ runner.os }}-build-
-        
+
     - name: Install dependencies
       run: mix deps.get
-      
+
     - name: Check Formatting
       run: mix format --check-formatted
-      
+
     - name: Compile
       run: mix compile --warnings-as-errors
-      
+
     - name: Run tests with coverage
       run: mix test --cover
-        
+
     - name: Upload coverage to Codecov
       if: matrix.primary
       uses: codecov/codecov-action@v4
@@ -111,7 +111,7 @@ jobs:
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
-        
+
     - name: Upload coverage reports
       uses: actions/upload-artifact@v4
       if: always()
@@ -128,31 +128,31 @@ jobs:
     strategy:
       matrix:
         include:
-          - otp: '27.0'
-            elixir: '1.18.3'
+          - otp: '28.1.1'
+            elixir: '1.19.3'
             primary: true
-    
+
     permissions:
       contents: read
       issues: write
-    
+
     steps:
     - name: Set up Git repository
       uses: actions/checkout@v4
-      
+
     - name: Set up Elixir
       uses: erlef/setup-beam@v1
       with:
         otp-version: ${{matrix.otp}}
         elixir-version: ${{matrix.elixir}}
-        
+
     - name: Restore dependencies cache
       uses: actions/cache@v4
       with:
         path: deps
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
         restore-keys: ${{ runner.os }}-mix-
-        
+
     - name: Restore PLT cache
       uses: actions/cache@v4
       id: plt_cache
@@ -162,19 +162,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-plt-${{ matrix.otp }}-${{ matrix.elixir }}-
           ${{ runner.os }}-plt-
-        
+
     - name: Install dependencies
       run: mix deps.get
-      
+
     - name: Compile
       run: mix compile
-      
+
     - name: Create PLTs
       if: steps.plt_cache.outputs.cache-hit != 'true'
       run: |
         mkdir -p priv/plts
         mix dialyzer --plt
-        
+
     - name: Run Dialyzer with output capture
       id: dialyzer
       run: |
@@ -188,7 +188,7 @@ jobs:
         fi
         echo "output_file=dialyzer_output.txt" >> $GITHUB_OUTPUT
       continue-on-error: true
-      
+
     - name: Read Dialyzer output
       id: read_output
       if: always()
@@ -202,7 +202,7 @@ jobs:
         else
           echo "dialyzer_output=No Dialyzer output file found" >> $GITHUB_OUTPUT
         fi
-      
+
     - name: Create GitHub Issue for Dialyzer failures
       if: steps.dialyzer.outputs.result == 'failure'
       uses: actions/github-script@v7
@@ -210,27 +210,27 @@ jobs:
         script: |
           const fs = require('fs');
           const dialyzerOutput = `${{ steps.read_output.outputs.dialyzer_output }}`;
-          
+
           const issueTitle = `Dialyzer warnings/errors in main branch (${context.sha.substring(0, 7)})`;
           const issueBody = `
           ## Dialyzer Analysis Results
-          
+
           **Commit:** ${context.sha}
           **Branch:** ${context.ref}
           **Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
           **OTP/Elixir:** ${{ matrix.otp }}/${{ matrix.elixir }}
-          
+
           ### Output:
           \`\`\`
           ${dialyzerOutput}
           \`\`\`
-          
+
           Please review and fix these Dialyzer warnings/errors.
-          
+
           ---
           *This issue was automatically created by the Elixir CI workflow.*
           `;
-          
+
           // Check if there's already an open issue for Dialyzer
           const issues = await github.rest.issues.listForRepo({
             owner: context.repo.owner,
@@ -238,11 +238,11 @@ jobs:
             state: 'open',
             labels: 'dialyzer,automated'
           });
-          
-          const existingIssue = issues.data.find(issue => 
+
+          const existingIssue = issues.data.find(issue =>
             issue.title.includes('Dialyzer warnings/errors in main branch')
           );
-          
+
           if (existingIssue) {
             // Update existing issue
             await github.rest.issues.createComment({
@@ -250,11 +250,11 @@ jobs:
               repo: context.repo.repo,
               issue_number: existingIssue.number,
               body: `## New Dialyzer Issues Found
-              
+
               **Commit:** ${context.sha}
               **Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
               **OTP/Elixir:** ${{ matrix.otp }}/${{ matrix.elixir }}
-              
+
               ### Output:
               \`\`\`
               ${dialyzerOutput}
@@ -271,7 +271,7 @@ jobs:
               labels: ['dialyzer', 'automated', 'bug']
             });
           }
-    
+
     - name: Close Dialyzer issues on success
       if: steps.dialyzer.outputs.result == 'success'
       uses: actions/github-script@v7
@@ -284,7 +284,7 @@ jobs:
             state: 'open',
             labels: 'dialyzer,automated'
           });
-          
+
           for (const issue of issues.data) {
             if (issue.title.includes('Dialyzer warnings/errors in main branch')) {
               await github.rest.issues.createComment({
@@ -293,7 +293,7 @@ jobs:
                 issue_number: issue.number,
                 body: `✅ Dialyzer analysis passed successfully in commit ${context.sha.substring(0, 7)} (OTP ${{ matrix.otp }}/Elixir ${{ matrix.elixir }}). Closing this issue.`
               });
-              
+
               await github.rest.issues.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
