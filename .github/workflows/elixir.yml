@@ -95,6 +95,7 @@ jobs:
       run: mix deps.get
 
     - name: Check Formatting
+      if: ${{ !matrix.primary }}
       run: mix format --check-formatted
 
     - name: Compile
