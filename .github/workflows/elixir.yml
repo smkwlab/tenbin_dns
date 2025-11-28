@@ -28,8 +28,8 @@ jobs:
     - name: Set up Elixir
       uses: erlef/setup-beam@v1
       with:
-        otp-version: '28.1.1'
-        elixir-version: '1.19.3'
+        otp-version: '28.2'
+        elixir-version: '1.19.4'
 
     - name: Restore dependencies cache
       uses: actions/cache@v4
@@ -61,8 +61,8 @@ jobs:
           - otp: '27.3.4.4'
             elixir: '1.17.3'
             primary: true
-          - otp: '28.1.1'
-            elixir: '1.19.3'
+          - otp: '28.2'
+            elixir: '1.19.4'
             primary: false
 
     steps:
@@ -122,8 +122,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - otp: '28.1.1'
-            elixir: '1.19.3'
+          - otp: '28.2'
+            elixir: '1.19.4'
             primary: true
 
     permissions:
