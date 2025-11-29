@@ -1,7 +1,6 @@
 # Elixir CI Workflow
 #
 # Uses the shared reusable workflow from smkwlab/.github
-# See: https://github.com/smkwlab/tenbin_dns/issues/60
 
 name: Elixir CI
 
@@ -22,5 +21,5 @@ concurrency:
 
 jobs:
   ci:
-    uses: smkwlab/.github/.github/workflows/elixir-ci.yml@main
+    uses: smkwlab/.github/.github/workflows/elixir-ci.yml@v1.0.0
     secrets: inherit
