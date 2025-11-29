@@ -2,71 +2,13 @@ name: Security
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   schedule:
-    # Run security audit weekly on Mondays at 2:00 AM UTC
-    - cron: '0 2 * * 1'
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  security-events: write
-  actions: read
+    - cron: '0 1 * * 1'
 
 jobs:
-  dependency-audit:
-    runs-on: ubuntu-latest
-    name: Dependency Security Audit
-    timeout-minutes: 15
-    
-    steps:
-    - name: Set up Git repository
-      uses: actions/checkout@v4
-      
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        otp-version: '28.1.1'
-        elixir-version: '1.19.3'
-        
-    - name: Restore dependencies cache
-      uses: actions/cache@v4
-      with:
-        path: deps
-        key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-        restore-keys: ${{ runner.os }}-mix-
-        
-    - name: Install dependencies
-      run: mix deps.get
-      
-    - name: Run dependency security audit
-      run: |
-        mix archive.install hex mix_audit --force
-        if mix deps.audit 2>&1 | grep -q "vulnerable"; then
-          echo "❌ Vulnerable dependencies found!"
-          mix deps.audit
-          exit 1
-        else
-          echo "✅ No vulnerable dependencies found"
-        fi
-        
-  secret-scan:
-    name: Secret Scanning
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
-    - name: Scan for secrets in codebase
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        base: ${{ github.event.before || 'HEAD~1' }}
-        head: HEAD
-        extra_args: --debug --only-verified
+  security:
+    uses: smkwlab/.github/.github/workflows/security.yml@v1.1.0
+    secrets: inherit

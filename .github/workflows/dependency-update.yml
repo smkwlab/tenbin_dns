@@ -2,97 +2,10 @@ name: Dependency Update
 
 on:
   schedule:
-    # Run weekly on Sundays at 3:00 AM UTC
-    - cron: '0 3 * * 0'
+    - cron: '0 1 * * 1'
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
-
-# Ensure only one dependency update runs at a time
-concurrency:
-  group: dependency-update
-  cancel-in-progress: false
-
 jobs:
-  update-dependencies:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    name: Update Dependencies
-    
-    steps:
-    - name: Set up Git repository
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
-      with:
-        otp-version: '28.1.1'
-        elixir-version: '1.19.3'
-        
-    - name: Install dependencies
-      run: mix deps.get
-      
-    - name: Update dependencies
-      run: |
-        mix deps.update --all
-        mix deps.unlock --check-unused
-      
-    - name: Compile dependencies
-      run: mix deps.compile
-      
-    - name: Run tests
-      run: mix test
-      continue-on-error: true
-      id: test_run
-      
-    - name: Run format check
-      run: mix format --check-formatted
-      continue-on-error: true
-      id: format_check
-      
-    - name: Check for changes
-      id: check_changes
-      run: |
-        if git diff --quiet; then
-          echo "changes=false" >> $GITHUB_OUTPUT
-        else
-          echo "changes=true" >> $GITHUB_OUTPUT
-          # Generate detailed change summary
-          echo "CHANGE_SUMMARY<<EOF" >> $GITHUB_ENV
-          echo "## Dependency Changes" >> $GITHUB_ENV
-          echo "" >> $GITHUB_ENV
-          git diff mix.lock | grep -E '^[+-]' | grep -v '^[+-]{3}' | head -20 >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-        fi
-        
-    - name: Create Pull Request
-      if: steps.check_changes.outputs.changes == 'true'
-      uses: peter-evans/create-pull-request@v5
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        commit-message: "chore: update dependencies"
-        title: "chore: weekly dependency update"
-        body: |
-          This is an automated pull request to update dependencies.
-          
-          ${{ env.CHANGE_SUMMARY }}
-          
-          ## Test Results
-          - Tests: ${{ steps.test_run.outcome }}
-          - Format: ${{ steps.format_check.outcome }}
-          
-          Please review the changes and ensure all tests pass before merging.
-          
-          ### Checklist
-          - [ ] All tests pass
-          - [ ] No breaking changes in dependencies
-          - [ ] Security advisories addressed (if any)
-        branch: dependency-update-${{ github.run_number }}
-        delete-branch: true
-        labels: |
-          dependencies
-          automated
+  dependency-update:
+    uses: smkwlab/.github/.github/workflows/dependency-update.yml@v1.1.0
+    secrets: inherit
