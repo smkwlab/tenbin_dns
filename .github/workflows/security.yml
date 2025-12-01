@@ -10,5 +10,5 @@ on:
 
 jobs:
   security:
-    uses: smkwlab/.github/.github/workflows/security.yml@v1.1.0
+    uses: smkwlab/.github/.github/workflows/security.yml@v1
     secrets: inherit
