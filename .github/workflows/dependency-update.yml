@@ -8,4 +8,6 @@ on:
 jobs:
   dependency-update:
     uses: smkwlab/.github/.github/workflows/dependency-update.yml@v1
+    with:
+      auto_merge: true
     secrets: inherit
