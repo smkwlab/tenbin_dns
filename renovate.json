@@ -1,23 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended"
-  ],
-  "schedule": [
-    "before 6am on monday"
-  ],
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
   "timezone": "Asia/Tokyo",
   "packageRules": [
     {
-      "matchManagers": [
-        "mix"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "digest",
-        "lockFileMaintenance"
-      ],
+      "matchManagers": ["mix"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "lockFileMaintenance"],
       "groupName": "elixir dependencies",
       "automerge": true,
       "platformAutomerge": true
