@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 6am on monday"],
+  "timezone": "Asia/Tokyo",
+  "packageRules": [
+    {
+      "matchManagers": ["mix"],
+      "groupName": "elixir dependencies",
+      "automerge": true,
+      "platformAutomerge": true
+    }
+  ]
+}
