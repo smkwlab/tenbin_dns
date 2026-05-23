@@ -6,6 +6,7 @@
   "packageRules": [
     {
       "matchManagers": ["mix"],
+      "matchDatasources": ["hex"],
       "matchUpdateTypes": ["minor", "patch", "digest", "lockFileMaintenance"],
       "groupName": "elixir dependencies",
       "automerge": true,
