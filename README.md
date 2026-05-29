@@ -5,14 +5,19 @@ An Elixir library for DNS packet parsing and creation. Tenbin.DNS provides handl
 ## Quick Start
 
 ```elixir
-# 1. Add the dependency in mix.exs
-def deps do
-  [{:tenbin_dns, "~> 0.7.0"}]
+# 1. Add the entry to your mix.exs deps list
+defp deps do
+  [
+    # ...
+    {:tenbin_dns, "~> 0.7.0"}
+  ]
 end
 ```
 
 ```elixir
-# 2. Build a DNS query packet and serialize it to wire format
+# 2. Build a DNS query packet and serialize it to wire format.
+#    Note: qname must be an FQDN with a trailing dot ("example.com.")
+#    so the wire packet ends in the DNS root label.
 iex> packet = %DNSpacket{
 ...>   id: 0x1234,
 ...>   rd: 1,
@@ -57,8 +62,9 @@ See [Usage](#usage) below for richer record types (HTTPS / SVCB, SRV, DNSSEC) an
 Add `tenbin_dns` to your list of dependencies in `mix.exs`:
 
 ```elixir
-def deps do
+defp deps do
   [
+    # ... existing dependencies
     {:tenbin_dns, "~> 0.7.0"}
   ]
 end
@@ -74,7 +80,7 @@ packet = %DNSpacket{
   id: 12345,
   rd: 1,
   question: [
-    %{qname: "example.com", qtype: :a, qclass: :in}
+    %{qname: "example.com.", qtype: :a, qclass: :in}
   ]
 }
 
@@ -89,10 +95,10 @@ binary_packet = DNSpacket.create(packet)
 https_packet = %DNSpacket{
   id: 12346,
   qr: 1,
-  question: [%{qname: "example.com", qtype: :https, qclass: :in}],
+  question: [%{qname: "example.com.", qtype: :https, qclass: :in}],
   answer: [%{
-    name: "example.com", 
-    type: :https, 
+    name: "example.com.",
+    type: :https,
     class: :in, 
     ttl: 300,
     rdata: %{
@@ -111,10 +117,10 @@ https_packet = %DNSpacket{
 srv_packet = %DNSpacket{
   id: 12347,
   qr: 1,
-  question: [%{qname: "_sip._tcp.example.com", qtype: :srv, qclass: :in}],
+  question: [%{qname: "_sip._tcp.example.com.", qtype: :srv, qclass: :in}],
   answer: [%{
-    name: "_sip._tcp.example.com", 
-    type: :srv, 
+    name: "_sip._tcp.example.com.",
+    type: :srv,
     class: :in, 
     ttl: 300,
     rdata: %{priority: 10, weight: 5, port: 5060, target: "sip.example.com"}
@@ -126,8 +132,8 @@ dnskey_packet = %DNSpacket{
   id: 12348,
   qr: 1,
   answer: [%{
-    name: "example.com", 
-    type: :dnskey, 
+    name: "example.com.",
+    type: :dnskey,
     class: :in, 
     ttl: 3600,
     rdata: %{flags: 257, protocol: 3, algorithm: 8, public_key: <<0x03, 0x01, 0x00, 0x01>>}
