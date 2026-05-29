@@ -2,6 +2,39 @@
 
 An Elixir library for DNS packet parsing and creation. Tenbin.DNS provides handling of DNS protocol operations with support for 19+ DNS record types, DNSSEC, web optimization features, and EDNS0 extensions.
 
+## Quick Start
+
+```elixir
+# 1. Add the dependency in mix.exs
+def deps do
+  [{:tenbin_dns, "~> 0.7.0"}]
+end
+```
+
+```elixir
+# 2. Build a DNS query packet and serialize it to wire format
+iex> packet = %DNSpacket{
+...>   id: 0x1234,
+...>   rd: 1,
+...>   question: [%{qname: "example.com.", qtype: :a, qclass: :in}]
+...> }
+iex> binary = DNSpacket.create(packet)
+iex> byte_size(binary)
+29
+```
+
+```elixir
+# 3. Parse a wire-format DNS packet back into a struct
+#    (parse/1 returns %DNSpacket{} directly — no {:ok, _} wrap)
+iex> parsed = DNSpacket.parse(binary)
+iex> parsed.id
+4660
+iex> hd(parsed.question)
+%{qname: "example.com.", qtype: :a, qclass: :in}
+```
+
+See [Usage](#usage) below for richer record types (HTTPS / SVCB, SRV, DNSSEC) and EDNS0 examples.
+
 ## Features
 
 - **DNS packet parsing and creation** - Binary pattern matching with compile-time optimizations
