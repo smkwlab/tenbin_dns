@@ -9,7 +9,7 @@ An Elixir library for DNS packet parsing and creation. Tenbin.DNS provides handl
 defp deps do
   [
     # ...
-    {:tenbin_dns, "~> 0.7.0"}
+    {:tenbin_dns, "~> 0.7.1"}
   ]
 end
 ```
@@ -65,7 +65,7 @@ Add `tenbin_dns` to your list of dependencies in `mix.exs`:
 defp deps do
   [
     # ... existing dependencies
-    {:tenbin_dns, "~> 0.7.0"}
+    {:tenbin_dns, "~> 0.7.1"}
   ]
 end
 ```
