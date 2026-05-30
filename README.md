@@ -17,7 +17,8 @@ end
 ```elixir
 # 2. Build a DNS query packet and serialize it to wire format.
 #    Note: qname must be an FQDN with a trailing dot ("example.com.")
-#    so the wire packet ends in the DNS root label.
+#    so the encoded name ends in the DNS root label (a zero-length
+#    label terminator).
 iex> packet = %DNSpacket{
 ...>   id: 0x1234,
 ...>   rd: 1,
@@ -99,11 +100,11 @@ https_packet = %DNSpacket{
   answer: [%{
     name: "example.com.",
     type: :https,
-    class: :in, 
+    class: :in,
     ttl: 300,
     rdata: %{
-      priority: 1, 
-      target: ".", 
+      priority: 1,
+      target: ".",
       svc_params: %{
         alpn: ["h3", "h2"],                           # HTTP/3, HTTP/2 support
         ipv4_hints: [{104, 16, 132, 229}],           # IPv4 optimization hints
@@ -121,7 +122,7 @@ srv_packet = %DNSpacket{
   answer: [%{
     name: "_sip._tcp.example.com.",
     type: :srv,
-    class: :in, 
+    class: :in,
     ttl: 300,
     rdata: %{priority: 10, weight: 5, port: 5060, target: "sip.example.com."}
   }]
@@ -134,7 +135,7 @@ dnskey_packet = %DNSpacket{
   answer: [%{
     name: "example.com.",
     type: :dnskey,
-    class: :in, 
+    class: :in,
     ttl: 3600,
     rdata: %{flags: 257, protocol: 3, algorithm: 8, public_key: <<0x03, 0x01, 0x00, 0x01>>}
   }]
@@ -230,7 +231,7 @@ LEFTHOOK=0 git commit -m "Emergency fix"
 
 Tenbin.DNS includes optimizations for DNS operations:
 - **Compile-time optimization** with native compilation
-- **Function inlining** for speed-critical paths  
+- **Function inlining** for speed-critical paths
 - **Binary pattern matching** for protocol handling
 - **O(1) constant lookups** using compile-time generated maps
 - **EDNS hybrid structure** providing 35-69% faster access to common options
