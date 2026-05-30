@@ -2,6 +2,45 @@
 
 An Elixir library for DNS packet parsing and creation. Tenbin.DNS provides handling of DNS protocol operations with support for 19+ DNS record types, DNSSEC, web optimization features, and EDNS0 extensions.
 
+## Quick Start
+
+```elixir
+# 1. Add the entry to your mix.exs deps list
+defp deps do
+  [
+    # ...
+    {:tenbin_dns, "~> 0.7.1"}
+  ]
+end
+```
+
+```elixir
+# 2. Build a DNS query packet and serialize it to wire format.
+#    Note: qname must be an FQDN with a trailing dot ("example.com.")
+#    so the encoded name ends in the DNS root label (a zero-length
+#    label terminator).
+iex> packet = %DNSpacket{
+...>   id: 0x1234,
+...>   rd: 1,
+...>   question: [%{qname: "example.com.", qtype: :a, qclass: :in}]
+...> }
+iex> binary = DNSpacket.create(packet)
+iex> byte_size(binary)
+29
+```
+
+```elixir
+# 3. Parse a wire-format DNS packet back into a struct
+#    (parse/1 returns %DNSpacket{} directly — no {:ok, _} wrap)
+iex> parsed = DNSpacket.parse(binary)
+iex> parsed.id
+4660
+iex> hd(parsed.question)
+%{qname: "example.com.", qtype: :a, qclass: :in}
+```
+
+See [Usage](#usage) below for richer record types (HTTPS / SVCB, SRV, DNSSEC) and EDNS0 examples.
+
 ## Features
 
 - **DNS packet parsing and creation** - Binary pattern matching with compile-time optimizations
@@ -24,9 +63,10 @@ An Elixir library for DNS packet parsing and creation. Tenbin.DNS provides handl
 Add `tenbin_dns` to your list of dependencies in `mix.exs`:
 
 ```elixir
-def deps do
+defp deps do
   [
-    {:tenbin_dns, "~> 0.7.0"}
+    # ... existing dependencies
+    {:tenbin_dns, "~> 0.7.1"}
   ]
 end
 ```
@@ -41,7 +81,7 @@ packet = %DNSpacket{
   id: 12345,
   rd: 1,
   question: [
-    %{qname: "example.com", qtype: :a, qclass: :in}
+    %{qname: "example.com.", qtype: :a, qclass: :in}
   ]
 }
 
@@ -56,15 +96,15 @@ binary_packet = DNSpacket.create(packet)
 https_packet = %DNSpacket{
   id: 12346,
   qr: 1,
-  question: [%{qname: "example.com", qtype: :https, qclass: :in}],
+  question: [%{qname: "example.com.", qtype: :https, qclass: :in}],
   answer: [%{
-    name: "example.com", 
-    type: :https, 
-    class: :in, 
+    name: "example.com.",
+    type: :https,
+    class: :in,
     ttl: 300,
     rdata: %{
-      priority: 1, 
-      target: ".", 
+      priority: 1,
+      target: ".",
       svc_params: %{
         alpn: ["h3", "h2"],                           # HTTP/3, HTTP/2 support
         ipv4_hints: [{104, 16, 132, 229}],           # IPv4 optimization hints
@@ -78,13 +118,13 @@ https_packet = %DNSpacket{
 srv_packet = %DNSpacket{
   id: 12347,
   qr: 1,
-  question: [%{qname: "_sip._tcp.example.com", qtype: :srv, qclass: :in}],
+  question: [%{qname: "_sip._tcp.example.com.", qtype: :srv, qclass: :in}],
   answer: [%{
-    name: "_sip._tcp.example.com", 
-    type: :srv, 
-    class: :in, 
+    name: "_sip._tcp.example.com.",
+    type: :srv,
+    class: :in,
     ttl: 300,
-    rdata: %{priority: 10, weight: 5, port: 5060, target: "sip.example.com"}
+    rdata: %{priority: 10, weight: 5, port: 5060, target: "sip.example.com."}
   }]
 }
 
@@ -93,9 +133,9 @@ dnskey_packet = %DNSpacket{
   id: 12348,
   qr: 1,
   answer: [%{
-    name: "example.com", 
-    type: :dnskey, 
-    class: :in, 
+    name: "example.com.",
+    type: :dnskey,
+    class: :in,
     ttl: 3600,
     rdata: %{flags: 257, protocol: 3, algorithm: 8, public_key: <<0x03, 0x01, 0x00, 0x01>>}
   }]
@@ -191,7 +231,7 @@ LEFTHOOK=0 git commit -m "Emergency fix"
 
 Tenbin.DNS includes optimizations for DNS operations:
 - **Compile-time optimization** with native compilation
-- **Function inlining** for speed-critical paths  
+- **Function inlining** for speed-critical paths
 - **Binary pattern matching** for protocol handling
 - **O(1) constant lookups** using compile-time generated maps
 - **EDNS hybrid structure** providing 35-69% faster access to common options
