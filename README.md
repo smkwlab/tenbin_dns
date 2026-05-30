@@ -123,7 +123,7 @@ srv_packet = %DNSpacket{
     type: :srv,
     class: :in, 
     ttl: 300,
-    rdata: %{priority: 10, weight: 5, port: 5060, target: "sip.example.com"}
+    rdata: %{priority: 10, weight: 5, port: 5060, target: "sip.example.com."}
   }]
 }
 
