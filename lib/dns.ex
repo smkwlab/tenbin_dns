@@ -230,34 +230,35 @@ defmodule DNS do
 
   @option_code_map for {k, v} <- @option_map, into: %{}, do: {v, k}
 
-  # Optimized pattern matching for most common DNS types with inlining
-  def type(1), do: :a
-  def type(2), do: :ns
-  def type(5), do: :cname
-  def type(15), do: :mx
-  def type(16), do: :txt
-  def type(28), do: :aaaa
-  def type(41), do: :opt
-  def type(255), do: :any
+  # Optimized pattern matching for most common DNS types with inlining.
+  # Fast-path clauses are generated from @type_map / @class_map so the
+  # dedicated clause and the lookup map can never disagree.
+  @fast_path_type_codes [1, 2, 5, 15, 16, 28, 41, 255]
+  @fast_path_class_codes [1, 255]
+
+  for code <- @fast_path_type_codes do
+    def type(unquote(code)), do: unquote(Map.fetch!(@type_map, code))
+  end
+
   def type(code), do: Map.get(@type_map, code)
 
-  def type_code(:a), do: 1
-  def type_code(:ns), do: 2
-  def type_code(:cname), do: 5
-  def type_code(:mx), do: 15
-  def type_code(:txt), do: 16
-  def type_code(:aaaa), do: 28
-  def type_code(:opt), do: 41
-  def type_code(:any), do: 255
+  for code <- @fast_path_type_codes do
+    def type_code(unquote(Map.fetch!(@type_map, code))), do: unquote(code)
+  end
+
   def type_code(atom), do: Map.get(@type_code_map, atom)
 
   # Optimized pattern matching for most common DNS classes with inlining
-  def class(1), do: :in
-  def class(255), do: :any
+  for code <- @fast_path_class_codes do
+    def class(unquote(code)), do: unquote(Map.fetch!(@class_map, code))
+  end
+
   def class(code), do: Map.get(@class_map, code)
 
-  def class_code(:in), do: 1
-  def class_code(:any), do: 255
+  for code <- @fast_path_class_codes do
+    def class_code(unquote(Map.fetch!(@class_map, code))), do: unquote(code)
+  end
+
   def class_code(atom), do: Map.get(@class_code_map, atom)
 
   # rcode lookup functions
