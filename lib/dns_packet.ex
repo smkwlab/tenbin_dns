@@ -1122,7 +1122,7 @@ defmodule DNSpacket do
   end
 
   defp set_bit_in_bitmap(bitmap, byte_pos, bit_pos) do
-    <<prefix::binary-size(byte_pos), byte::8, suffix::binary>> = bitmap
+    <<prefix::binary-size(^byte_pos), byte::8, suffix::binary>> = bitmap
     new_byte = byte ||| 1 <<< bit_pos
     prefix <> <<new_byte::8>> <> suffix
   end
@@ -1504,7 +1504,7 @@ defmodule DNSpacket do
   end
 
   defp parse_name_acc(<<0b11::2, offset::14, body::binary>>, orig_body, acc) do
-    <<_::binary-size(offset), tmp_body::binary>> = orig_body
+    <<_::binary-size(^offset), tmp_body::binary>> = orig_body
     {_, _, name} = parse_name_acc(tmp_body, orig_body, [])
     {body, orig_body, IO.iodata_to_binary(Enum.reverse([name | acc]))}
   end
