@@ -31,11 +31,6 @@ defmodule DNSpacket.EDNS do
     :deviceid
   ]
 
-  # Output order of unflatten/1. This order is wire-format relevant: tests and
-  # downstream consumers observe option bytes in exactly this sequence, with
-  # unknown options appended last.
-  @unflatten_order @known_options
-
   @doc false
   def encode_options(%{} = options) do
     options
@@ -378,20 +373,48 @@ defmodule DNSpacket.EDNS do
   end
 
   # Convert a flattened (hybrid) edns_info map back into the option list used
-  # as OPT record rdata. One collect_option/2 clause per option.
+  # as OPT record rdata. One prepend_option/3 clause per option.
+  #
+  # The emitted order is wire-format relevant: the prepend chain runs in
+  # reverse, so options appear as ECS first ... deviceid last, with unknown
+  # options appended last in reversed map-enumeration order. The chain is
+  # inlined (see @compile below) to keep the hot create path allocation-free
+  # apart from the option list itself.
+  @compile {:inline, prepend_option: 3}
+
   @doc false
   def unflatten(edns_info) do
-    Enum.flat_map(@unflatten_order, &collect_option(&1, edns_info)) ++
-      collect_unknown(edns_info)
+    edns_info
+    |> collect_unknown()
+    |> prepend_option(:deviceid, edns_info)
+    |> prepend_option(:umbrella_ident, edns_info)
+    |> prepend_option(:llq, edns_info)
+    |> prepend_option(:update_lease, edns_info)
+    |> prepend_option(:zoneversion, edns_info)
+    |> prepend_option(:report_channel, edns_info)
+    |> prepend_option(:edns_server_tag, edns_info)
+    |> prepend_option(:edns_client_tag, edns_info)
+    |> prepend_option(:edns_key_tag, edns_info)
+    |> prepend_option(:chain, edns_info)
+    |> prepend_option(:edns_expire, edns_info)
+    |> prepend_option(:n3u, edns_info)
+    |> prepend_option(:dhu, edns_info)
+    |> prepend_option(:dau, edns_info)
+    |> prepend_option(:padding, edns_info)
+    |> prepend_option(:edns_tcp_keepalive, edns_info)
+    |> prepend_option(:extended_dns_error, edns_info)
+    |> prepend_option(:nsid, edns_info)
+    |> prepend_option(:cookie, edns_info)
+    |> prepend_option(:edns_client_subnet, edns_info)
   end
 
-  defp collect_option(:edns_client_subnet, edns_info) do
+  defp prepend_option(acc, :edns_client_subnet, edns_info) do
     case {Map.get(edns_info, :ecs_family), Map.get(edns_info, :ecs_subnet)} do
       {nil, _} ->
-        []
+        acc
 
       {_, nil} ->
-        []
+        acc
 
       {family, subnet} ->
         [
@@ -402,28 +425,32 @@ defmodule DNSpacket.EDNS do
              source_prefix: Map.get(edns_info, :ecs_source_prefix),
              scope_prefix: Map.get(edns_info, :ecs_scope_prefix)
            }}
+          | acc
         ]
     end
   end
 
-  defp collect_option(:cookie, edns_info) do
+  defp prepend_option(acc, :cookie, edns_info) do
     case Map.get(edns_info, :cookie_client) do
-      nil -> []
-      client -> [{:cookie, %{client: client, server: Map.get(edns_info, :cookie_server)}}]
+      nil ->
+        acc
+
+      client ->
+        [{:cookie, %{client: client, server: Map.get(edns_info, :cookie_server)}} | acc]
     end
   end
 
-  defp collect_option(:nsid, edns_info) do
+  defp prepend_option(acc, :nsid, edns_info) do
     case Map.get(edns_info, :nsid) do
-      nil -> []
-      nsid -> [{:nsid, nsid}]
+      nil -> acc
+      nsid -> [{:nsid, nsid} | acc]
     end
   end
 
-  defp collect_option(:extended_dns_error, edns_info) do
+  defp prepend_option(acc, :extended_dns_error, edns_info) do
     case Map.get(edns_info, :extended_dns_error_info_code) do
       nil ->
-        []
+        acc
 
       info_code ->
         [
@@ -432,12 +459,13 @@ defmodule DNSpacket.EDNS do
              info_code: info_code,
              extra_text: Map.get(edns_info, :extended_dns_error_extra_text)
            }}
+          | acc
         ]
     end
   end
 
   # TCP keepalive is collected on key presence (a nil timeout is still encoded)
-  defp collect_option(:edns_tcp_keepalive, edns_info) do
+  defp prepend_option(acc, :edns_tcp_keepalive, edns_info) do
     if Map.has_key?(edns_info, :edns_tcp_keepalive_timeout) do
       [
         {:edns_tcp_keepalive,
@@ -445,100 +473,101 @@ defmodule DNSpacket.EDNS do
            timeout: Map.get(edns_info, :edns_tcp_keepalive_timeout),
            raw_data: Map.get(edns_info, :edns_tcp_keepalive_raw_data)
          }}
+        | acc
       ]
     else
-      []
+      acc
     end
   end
 
-  defp collect_option(:padding, edns_info) do
+  defp prepend_option(acc, :padding, edns_info) do
     case Map.get(edns_info, :padding_length) do
-      nil -> []
-      length -> [{:padding, %{length: length}}]
+      nil -> acc
+      length -> [{:padding, %{length: length}} | acc]
     end
   end
 
-  defp collect_option(:dau, edns_info) do
+  defp prepend_option(acc, :dau, edns_info) do
     case Map.get(edns_info, :dau_algorithms) do
-      nil -> []
-      algorithms -> [{:dau, %{algorithms: algorithms}}]
+      nil -> acc
+      algorithms -> [{:dau, %{algorithms: algorithms}} | acc]
     end
   end
 
-  defp collect_option(:dhu, edns_info) do
+  defp prepend_option(acc, :dhu, edns_info) do
     case Map.get(edns_info, :dhu_algorithms) do
-      nil -> []
-      algorithms -> [{:dhu, %{algorithms: algorithms}}]
+      nil -> acc
+      algorithms -> [{:dhu, %{algorithms: algorithms}} | acc]
     end
   end
 
-  defp collect_option(:n3u, edns_info) do
+  defp prepend_option(acc, :n3u, edns_info) do
     case Map.get(edns_info, :n3u_algorithms) do
-      nil -> []
-      algorithms -> [{:n3u, %{algorithms: algorithms}}]
+      nil -> acc
+      algorithms -> [{:n3u, %{algorithms: algorithms}} | acc]
     end
   end
 
-  defp collect_option(:edns_expire, edns_info) do
+  defp prepend_option(acc, :edns_expire, edns_info) do
     case Map.get(edns_info, :edns_expire_expire) do
-      nil -> []
-      expire -> [{:edns_expire, %{expire: expire}}]
+      nil -> acc
+      expire -> [{:edns_expire, %{expire: expire}} | acc]
     end
   end
 
-  defp collect_option(:chain, edns_info) do
+  defp prepend_option(acc, :chain, edns_info) do
     case Map.get(edns_info, :chain_closest_encloser) do
-      nil -> []
-      closest_encloser -> [{:chain, %{closest_encloser: closest_encloser}}]
+      nil -> acc
+      closest_encloser -> [{:chain, %{closest_encloser: closest_encloser}} | acc]
     end
   end
 
-  defp collect_option(:edns_key_tag, edns_info) do
+  defp prepend_option(acc, :edns_key_tag, edns_info) do
     case Map.get(edns_info, :edns_key_tag_key_tags) do
-      nil -> []
-      key_tags -> [{:edns_key_tag, %{key_tags: key_tags}}]
+      nil -> acc
+      key_tags -> [{:edns_key_tag, %{key_tags: key_tags}} | acc]
     end
   end
 
-  defp collect_option(:edns_client_tag, edns_info) do
+  defp prepend_option(acc, :edns_client_tag, edns_info) do
     case Map.get(edns_info, :edns_client_tag_tag) do
-      nil -> []
-      tag -> [{:edns_client_tag, %{tag: tag}}]
+      nil -> acc
+      tag -> [{:edns_client_tag, %{tag: tag}} | acc]
     end
   end
 
-  defp collect_option(:edns_server_tag, edns_info) do
+  defp prepend_option(acc, :edns_server_tag, edns_info) do
     case Map.get(edns_info, :edns_server_tag_tag) do
-      nil -> []
-      tag -> [{:edns_server_tag, %{tag: tag}}]
+      nil -> acc
+      tag -> [{:edns_server_tag, %{tag: tag}} | acc]
     end
   end
 
-  defp collect_option(:report_channel, edns_info) do
+  defp prepend_option(acc, :report_channel, edns_info) do
     case Map.get(edns_info, :report_channel_agent_domain) do
-      nil -> []
-      agent_domain -> [{:report_channel, %{agent_domain: agent_domain}}]
+      nil -> acc
+      agent_domain -> [{:report_channel, %{agent_domain: agent_domain}} | acc]
     end
   end
 
-  defp collect_option(:zoneversion, edns_info) do
+  defp prepend_option(acc, :zoneversion, edns_info) do
     case Map.get(edns_info, :zoneversion_version) do
-      nil -> []
-      version -> [{:zoneversion, %{version: version}}]
+      nil -> acc
+      version -> [{:zoneversion, %{version: version}} | acc]
     end
   end
 
-  defp collect_option(:update_lease, edns_info) do
+  defp prepend_option(acc, :update_lease, edns_info) do
     case Map.get(edns_info, :update_lease_lease) do
-      nil -> []
-      lease -> [{:update_lease, %{lease: lease}}]
+      nil -> acc
+      lease -> [{:update_lease, %{lease: lease}} | acc]
     end
   end
 
-  defp collect_option(:llq, edns_info) do
+  defp prepend_option(acc, :llq, edns_info) do
     case Map.get(edns_info, :llq_version) do
       nil ->
-        []
+        acc
 
       version ->
         [
@@ -550,21 +579,22 @@ defmodule DNSpacket.EDNS do
              llq_id: Map.get(edns_info, :llq_llq_id),
              lease_life: Map.get(edns_info, :llq_lease_life)
            }}
+          | acc
         ]
     end
   end
 
-  defp collect_option(:umbrella_ident, edns_info) do
+  defp prepend_option(acc, :umbrella_ident, edns_info) do
     case Map.get(edns_info, :umbrella_ident_ident) do
-      nil -> []
-      ident -> [{:umbrella_ident, %{ident: ident}}]
+      nil -> acc
+      ident -> [{:umbrella_ident, %{ident: ident}} | acc]
     end
   end
 
-  defp collect_option(:deviceid, edns_info) do
+  defp prepend_option(acc, :deviceid, edns_info) do
     case Map.get(edns_info, :deviceid_device_id) do
-      nil -> []
-      device_id -> [{:deviceid, %{device_id: device_id}}]
+      nil -> acc
+      device_id -> [{:deviceid, %{device_id: device_id}} | acc]
     end
   end
 
