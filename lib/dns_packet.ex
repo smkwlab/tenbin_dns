@@ -461,112 +461,50 @@ defmodule DNSpacket do
     <<option_code::16, byte_size(data)::16>> <> data
   end
 
+  # Option keys encodable by create_option_binary/1 (kept in sync with its clauses)
+  @known_edns_options [
+    :edns_client_subnet,
+    :cookie,
+    :nsid,
+    :extended_dns_error,
+    :edns_tcp_keepalive,
+    :padding,
+    :dau,
+    :dhu,
+    :n3u,
+    :edns_expire,
+    :chain,
+    :edns_key_tag,
+    :edns_client_tag,
+    :edns_server_tag,
+    :report_channel,
+    :zoneversion,
+    :update_lease,
+    :llq,
+    :umbrella_ident,
+    :deviceid
+  ]
+
   @doc false
   def create_edns_options(%{} = options) do
     options
-    |> Enum.flat_map(&create_edns_option/1)
+    |> Enum.flat_map(&create_edns_option_entry/1)
     |> IO.iodata_to_binary()
   end
 
   @doc false
   def create_edns_options(_), do: <<>>
 
-  defp create_edns_option({:edns_client_subnet, ecs_data}) do
-    [create_ecs_option(ecs_data)]
+  defp create_edns_option_entry({:unknown, unknown_options}) when is_list(unknown_options) do
+    Enum.map(unknown_options, &create_option_binary({:unknown, &1}))
   end
 
-  defp create_edns_option({:cookie, cookie_data}) do
-    [create_cookie_option(cookie_data)]
+  defp create_edns_option_entry({key, _value} = option) when key in @known_edns_options do
+    [create_option_binary(option)]
   end
 
-  defp create_edns_option({:nsid, nsid_data}) do
-    [create_nsid_option(nsid_data)]
-  end
-
-  defp create_edns_option({:extended_dns_error, ede_data}) do
-    [create_extended_dns_error_option(ede_data)]
-  end
-
-  defp create_edns_option({:edns_tcp_keepalive, keepalive_data}) do
-    [create_tcp_keepalive_option(keepalive_data)]
-  end
-
-  defp create_edns_option({:padding, padding_data}) do
-    [create_padding_option(padding_data)]
-  end
-
-  defp create_edns_option({:dau, dau_data}) do
-    [create_dau_option(dau_data)]
-  end
-
-  defp create_edns_option({:dhu, dhu_data}) do
-    [create_dhu_option(dhu_data)]
-  end
-
-  defp create_edns_option({:n3u, n3u_data}) do
-    [create_n3u_option(n3u_data)]
-  end
-
-  defp create_edns_option({:edns_expire, expire_data}) do
-    [create_edns_expire_option(expire_data)]
-  end
-
-  defp create_edns_option({:chain, chain_data}) do
-    [create_chain_option(chain_data)]
-  end
-
-  defp create_edns_option({:edns_key_tag, key_tag_data}) do
-    [create_edns_key_tag_option(key_tag_data)]
-  end
-
-  defp create_edns_option({:edns_client_tag, client_tag_data}) do
-    [create_edns_client_tag_option(client_tag_data)]
-  end
-
-  defp create_edns_option({:edns_server_tag, server_tag_data}) do
-    [create_edns_server_tag_option(server_tag_data)]
-  end
-
-  defp create_edns_option({:report_channel, report_channel_data}) do
-    [create_report_channel_option(report_channel_data)]
-  end
-
-  defp create_edns_option({:zoneversion, zoneversion_data}) do
-    [create_zoneversion_option(zoneversion_data)]
-  end
-
-  defp create_edns_option({:update_lease, update_lease_data}) do
-    [create_update_lease_option(update_lease_data)]
-  end
-
-  defp create_edns_option({:llq, llq_data}) do
-    [create_llq_option(llq_data)]
-  end
-
-  defp create_edns_option({:umbrella_ident, umbrella_ident_data}) do
-    [create_umbrella_ident_option(umbrella_ident_data)]
-  end
-
-  defp create_edns_option({:deviceid, deviceid_data}) do
-    [create_deviceid_option(deviceid_data)]
-  end
-
-  defp create_edns_option({:unknown, unknown_options}) when is_list(unknown_options) do
-    Enum.map(unknown_options, &create_unknown_option/1)
-  end
-
-  defp create_edns_option(_), do: []
-
-  defp create_ecs_option(%{
-         family: family,
-         client_subnet: subnet,
-         source_prefix: source,
-         scope_prefix: scope
-       }) do
-    addr_bytes = create_ecs_address_bytes(family, subnet, source)
-    data = <<family::16, source::8, scope::8>> <> addr_bytes
-    <<DNS.option_code(:edns_client_subnet)::16, byte_size(data)::16>> <> data
-  end
+  # Unknown option keys are silently skipped
+  defp create_edns_option_entry(_), do: []
 
   defp create_ecs_address_bytes(1, {a, b, c, d}, source_prefix) do
     # IPv4 address - calculate how many bytes needed for the prefix
@@ -585,121 +523,6 @@ defmodule DNSpacket do
   defp create_ecs_address_bytes(_, addr_bytes, _) when is_binary(addr_bytes) do
     # Unknown family, return as-is
     addr_bytes
-  end
-
-  defp create_cookie_option(%{client: client, server: nil}) do
-    <<DNS.option_code(:cookie)::16, byte_size(client)::16>> <> client
-  end
-
-  defp create_cookie_option(%{client: client, server: server}) when is_binary(server) do
-    cookie_data = client <> server
-    <<DNS.option_code(:cookie)::16, byte_size(cookie_data)::16>> <> cookie_data
-  end
-
-  defp create_nsid_option(nsid_data) when is_binary(nsid_data) do
-    <<DNS.option_code(:nsid)::16, byte_size(nsid_data)::16>> <> nsid_data
-  end
-
-  defp create_extended_dns_error_option(%{info_code: info_code, extra_text: extra_text}) do
-    data = <<info_code::16>> <> extra_text
-    <<DNS.option_code(:extended_dns_error)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_tcp_keepalive_option(%{timeout: nil}) do
-    <<DNS.option_code(:edns_tcp_keepalive)::16, 0::16>>
-  end
-
-  defp create_tcp_keepalive_option(%{timeout: timeout}) when is_integer(timeout) do
-    data = <<timeout::16>>
-    <<DNS.option_code(:edns_tcp_keepalive)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_padding_option(%{length: length}) when is_integer(length) do
-    padding_data = <<0::size(length * 8)>>
-    <<DNS.option_code(:padding)::16, byte_size(padding_data)::16>> <> padding_data
-  end
-
-  defp create_dau_option(%{algorithms: algorithms}) when is_list(algorithms) do
-    data = :binary.list_to_bin(algorithms)
-    <<DNS.option_code(:dau)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_dhu_option(%{algorithms: algorithms}) when is_list(algorithms) do
-    data = :binary.list_to_bin(algorithms)
-    <<DNS.option_code(:dhu)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_n3u_option(%{algorithms: algorithms}) when is_list(algorithms) do
-    data = :binary.list_to_bin(algorithms)
-    <<DNS.option_code(:n3u)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_edns_expire_option(%{expire: nil}) do
-    <<DNS.option_code(:edns_expire)::16, 0::16>>
-  end
-
-  defp create_edns_expire_option(%{expire: expire}) when is_integer(expire) do
-    data = <<expire::32>>
-    <<DNS.option_code(:edns_expire)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_chain_option(%{closest_encloser: closest_encloser})
-       when is_binary(closest_encloser) do
-    <<DNS.option_code(:chain)::16, byte_size(closest_encloser)::16>> <> closest_encloser
-  end
-
-  defp create_edns_key_tag_option(%{key_tags: key_tags}) when is_list(key_tags) do
-    data = for tag <- key_tags, into: <<>>, do: <<tag::16>>
-    <<DNS.option_code(:edns_key_tag)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_edns_client_tag_option(%{tag: tag}) when is_integer(tag) do
-    data = <<tag::16>>
-    <<DNS.option_code(:edns_client_tag)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_edns_server_tag_option(%{tag: tag}) when is_integer(tag) do
-    data = <<tag::16>>
-    <<DNS.option_code(:edns_server_tag)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_report_channel_option(%{agent_domain: agent_domain}) when is_binary(agent_domain) do
-    <<DNS.option_code(:report_channel)::16, byte_size(agent_domain)::16>> <> agent_domain
-  end
-
-  defp create_zoneversion_option(%{version: version}) when is_integer(version) do
-    data = <<version::64>>
-    <<DNS.option_code(:zoneversion)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_update_lease_option(%{lease: lease}) when is_integer(lease) do
-    data = <<lease::32>>
-    <<DNS.option_code(:update_lease)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_llq_option(%{
-         version: version,
-         llq_opcode: llq_opcode,
-         error_code: error_code,
-         llq_id: llq_id,
-         lease_life: lease_life
-       }) do
-    data = <<version::16, llq_opcode::16, error_code::16, llq_id::64, lease_life::32>>
-    <<DNS.option_code(:llq)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_umbrella_ident_option(%{ident: ident}) when is_integer(ident) do
-    data = <<ident::32>>
-    <<DNS.option_code(:umbrella_ident)::16, byte_size(data)::16>> <> data
-  end
-
-  defp create_deviceid_option(%{device_id: device_id}) when is_binary(device_id) do
-    <<DNS.option_code(:deviceid)::16, byte_size(device_id)::16>> <> device_id
-  end
-
-  defp create_unknown_option(%{code: code, data: data}) do
-    option_code = DNS.option_code(code) || 0
-    <<option_code::16, byte_size(data)::16>> <> data
   end
 
   @doc false
