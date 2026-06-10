@@ -4,6 +4,11 @@ defmodule DNSpacket.EDNS do
   # Each option appears as one clause in encode_option/1 and decode_option/2,
   # keeping the encode/decode pair for an option next to each other in spirit
   # and in @known_options for key dispatch.
+  #
+  # The def (public) functions exist for cross-module calls from DNSpacket
+  # (create_rr/parse_opt_rr/create_edns_info_record) and for the consistency
+  # tests — they are not part of the library's public API, hence
+  # @moduledoc false and @doc false throughout.
 
   import Bitwise
 
