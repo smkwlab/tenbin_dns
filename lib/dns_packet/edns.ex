@@ -390,7 +390,9 @@ defmodule DNSpacket.EDNS do
   # reverse, so options appear as ECS first ... deviceid last, with unknown
   # options appended last in reversed map-enumeration order. The chain is
   # inlined (see @compile below) to keep the hot create path allocation-free
-  # apart from the option list itself.
+  # apart from the option list itself. prepend_option/3 (rather than
+  # unflatten/1) is the inline target: every call site passes a literal key,
+  # so inlining lets the compiler drop the non-matching clauses per site.
   @compile {:inline, prepend_option: 3}
 
   @doc false

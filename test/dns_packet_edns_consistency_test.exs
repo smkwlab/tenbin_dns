@@ -121,6 +121,17 @@ defmodule DNSpacketEDNSConsistencyTest do
   defp option_key({key, _value}), do: key
   defp option_key(%{code: code}), do: code
 
+  test "flatten silently discards known keys with unexpected value shapes" do
+    # Matches the original extract_and_flatten_options/1: a known key whose
+    # value fails the clause guard is neither flattened nor sent to unknown.
+    assert EDNS.flatten([{:cookie, "not-a-map"}, {:nsid, %{not: "a-binary"}}]) == {%{}, %{}}
+  end
+
+  test "flatten routes code/data-shaped values under unrecognized keys to unknown" do
+    assert EDNS.flatten([{:something_else, %{code: 65_003, data: <<9>>}}]) ==
+             {%{}, %{65_003 => <<9>>}}
+  end
+
   test "unflatten/flatten round-trips every known option" do
     for key <- EDNS.known_options() do
       flat = Map.fetch!(@flat_samples, key)
