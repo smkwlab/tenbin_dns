@@ -31,6 +31,11 @@ defmodule DNSpacket.EDNS do
     :deviceid
   ]
 
+  # Output order of unflatten/1. This order is wire-format relevant: tests and
+  # downstream consumers observe option bytes in exactly this sequence, with
+  # unknown options appended last.
+  @unflatten_order @known_options
+
   @doc false
   def encode_options(%{} = options) do
     options
@@ -371,6 +376,346 @@ defmodule DNSpacket.EDNS do
   def decode_option(code, data) do
     {:unknown, %{code: code, data: data}}
   end
+
+  # Convert a flattened (hybrid) edns_info map back into the option list used
+  # as OPT record rdata. One collect_option/2 clause per option.
+  @doc false
+  def unflatten(edns_info) do
+    Enum.flat_map(@unflatten_order, &collect_option(&1, edns_info)) ++
+      collect_unknown(edns_info)
+  end
+
+  defp collect_option(:edns_client_subnet, edns_info) do
+    case {Map.get(edns_info, :ecs_family), Map.get(edns_info, :ecs_subnet)} do
+      {nil, _} ->
+        []
+
+      {_, nil} ->
+        []
+
+      {family, subnet} ->
+        [
+          {:edns_client_subnet,
+           %{
+             family: family,
+             client_subnet: subnet,
+             source_prefix: Map.get(edns_info, :ecs_source_prefix),
+             scope_prefix: Map.get(edns_info, :ecs_scope_prefix)
+           }}
+        ]
+    end
+  end
+
+  defp collect_option(:cookie, edns_info) do
+    case Map.get(edns_info, :cookie_client) do
+      nil -> []
+      client -> [{:cookie, %{client: client, server: Map.get(edns_info, :cookie_server)}}]
+    end
+  end
+
+  defp collect_option(:nsid, edns_info) do
+    case Map.get(edns_info, :nsid) do
+      nil -> []
+      nsid -> [{:nsid, nsid}]
+    end
+  end
+
+  defp collect_option(:extended_dns_error, edns_info) do
+    case Map.get(edns_info, :extended_dns_error_info_code) do
+      nil ->
+        []
+
+      info_code ->
+        [
+          {:extended_dns_error,
+           %{
+             info_code: info_code,
+             extra_text: Map.get(edns_info, :extended_dns_error_extra_text)
+           }}
+        ]
+    end
+  end
+
+  # TCP keepalive is collected on key presence (a nil timeout is still encoded)
+  defp collect_option(:edns_tcp_keepalive, edns_info) do
+    if Map.has_key?(edns_info, :edns_tcp_keepalive_timeout) do
+      [
+        {:edns_tcp_keepalive,
+         %{
+           timeout: Map.get(edns_info, :edns_tcp_keepalive_timeout),
+           raw_data: Map.get(edns_info, :edns_tcp_keepalive_raw_data)
+         }}
+      ]
+    else
+      []
+    end
+  end
+
+  defp collect_option(:padding, edns_info) do
+    case Map.get(edns_info, :padding_length) do
+      nil -> []
+      length -> [{:padding, %{length: length}}]
+    end
+  end
+
+  defp collect_option(:dau, edns_info) do
+    case Map.get(edns_info, :dau_algorithms) do
+      nil -> []
+      algorithms -> [{:dau, %{algorithms: algorithms}}]
+    end
+  end
+
+  defp collect_option(:dhu, edns_info) do
+    case Map.get(edns_info, :dhu_algorithms) do
+      nil -> []
+      algorithms -> [{:dhu, %{algorithms: algorithms}}]
+    end
+  end
+
+  defp collect_option(:n3u, edns_info) do
+    case Map.get(edns_info, :n3u_algorithms) do
+      nil -> []
+      algorithms -> [{:n3u, %{algorithms: algorithms}}]
+    end
+  end
+
+  defp collect_option(:edns_expire, edns_info) do
+    case Map.get(edns_info, :edns_expire_expire) do
+      nil -> []
+      expire -> [{:edns_expire, %{expire: expire}}]
+    end
+  end
+
+  defp collect_option(:chain, edns_info) do
+    case Map.get(edns_info, :chain_closest_encloser) do
+      nil -> []
+      closest_encloser -> [{:chain, %{closest_encloser: closest_encloser}}]
+    end
+  end
+
+  defp collect_option(:edns_key_tag, edns_info) do
+    case Map.get(edns_info, :edns_key_tag_key_tags) do
+      nil -> []
+      key_tags -> [{:edns_key_tag, %{key_tags: key_tags}}]
+    end
+  end
+
+  defp collect_option(:edns_client_tag, edns_info) do
+    case Map.get(edns_info, :edns_client_tag_tag) do
+      nil -> []
+      tag -> [{:edns_client_tag, %{tag: tag}}]
+    end
+  end
+
+  defp collect_option(:edns_server_tag, edns_info) do
+    case Map.get(edns_info, :edns_server_tag_tag) do
+      nil -> []
+      tag -> [{:edns_server_tag, %{tag: tag}}]
+    end
+  end
+
+  defp collect_option(:report_channel, edns_info) do
+    case Map.get(edns_info, :report_channel_agent_domain) do
+      nil -> []
+      agent_domain -> [{:report_channel, %{agent_domain: agent_domain}}]
+    end
+  end
+
+  defp collect_option(:zoneversion, edns_info) do
+    case Map.get(edns_info, :zoneversion_version) do
+      nil -> []
+      version -> [{:zoneversion, %{version: version}}]
+    end
+  end
+
+  defp collect_option(:update_lease, edns_info) do
+    case Map.get(edns_info, :update_lease_lease) do
+      nil -> []
+      lease -> [{:update_lease, %{lease: lease}}]
+    end
+  end
+
+  defp collect_option(:llq, edns_info) do
+    case Map.get(edns_info, :llq_version) do
+      nil ->
+        []
+
+      version ->
+        [
+          {:llq,
+           %{
+             version: version,
+             llq_opcode: Map.get(edns_info, :llq_llq_opcode),
+             error_code: Map.get(edns_info, :llq_error_code),
+             llq_id: Map.get(edns_info, :llq_llq_id),
+             lease_life: Map.get(edns_info, :llq_lease_life)
+           }}
+        ]
+    end
+  end
+
+  defp collect_option(:umbrella_ident, edns_info) do
+    case Map.get(edns_info, :umbrella_ident_ident) do
+      nil -> []
+      ident -> [{:umbrella_ident, %{ident: ident}}]
+    end
+  end
+
+  defp collect_option(:deviceid, edns_info) do
+    case Map.get(edns_info, :deviceid_device_id) do
+      nil -> []
+      device_id -> [{:deviceid, %{device_id: device_id}}]
+    end
+  end
+
+  defp collect_unknown(edns_info) do
+    case Map.get(edns_info, :unknown_options) do
+      unknown when is_map(unknown) and map_size(unknown) > 0 ->
+        unknown
+        |> Enum.map(fn {code, data} -> %{code: code, data: data} end)
+        |> Enum.reverse()
+
+      _ ->
+        []
+    end
+  end
+
+  # Flatten a parsed option map into the hybrid edns_info representation.
+  # One flatten_option/3 clause per option; values that do not match an
+  # option's expected shape fall through to the unknown handling clauses.
+  @doc false
+  def flatten(options) do
+    Enum.reduce(options, {%{}, %{}}, fn {key, value}, acc ->
+      flatten_option(key, value, acc)
+    end)
+  end
+
+  defp flatten_option(:edns_client_subnet, value, {flat, unknown}) when is_map(value) do
+    flat_updates = %{
+      ecs_family: Map.get(value, :family),
+      ecs_subnet: Map.get(value, :client_subnet),
+      ecs_source_prefix: Map.get(value, :source_prefix),
+      ecs_scope_prefix: Map.get(value, :scope_prefix)
+    }
+
+    {Map.merge(flat, flat_updates), unknown}
+  end
+
+  defp flatten_option(:cookie, value, {flat, unknown}) when is_map(value) do
+    flat_updates = %{
+      cookie_client: Map.get(value, :client),
+      cookie_server: Map.get(value, :server)
+    }
+
+    {Map.merge(flat, flat_updates), unknown}
+  end
+
+  defp flatten_option(:nsid, value, {flat, unknown}) when is_binary(value) do
+    {Map.put(flat, :nsid, value), unknown}
+  end
+
+  defp flatten_option(:extended_dns_error, value, {flat, unknown}) when is_map(value) do
+    flat_updates = %{
+      extended_dns_error_info_code: Map.get(value, :info_code),
+      extended_dns_error_extra_text: Map.get(value, :extra_text)
+    }
+
+    {Map.merge(flat, flat_updates), unknown}
+  end
+
+  defp flatten_option(:edns_tcp_keepalive, value, {flat, unknown}) when is_map(value) do
+    flat_updates = %{
+      edns_tcp_keepalive_timeout: Map.get(value, :timeout),
+      edns_tcp_keepalive_raw_data: Map.get(value, :raw_data)
+    }
+
+    {Map.merge(flat, flat_updates), unknown}
+  end
+
+  defp flatten_option(:padding, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :padding_length, Map.get(value, :length)), unknown}
+  end
+
+  defp flatten_option(:dau, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :dau_algorithms, Map.get(value, :algorithms)), unknown}
+  end
+
+  defp flatten_option(:dhu, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :dhu_algorithms, Map.get(value, :algorithms)), unknown}
+  end
+
+  defp flatten_option(:n3u, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :n3u_algorithms, Map.get(value, :algorithms)), unknown}
+  end
+
+  defp flatten_option(:edns_expire, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :edns_expire_expire, Map.get(value, :expire)), unknown}
+  end
+
+  defp flatten_option(:chain, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :chain_closest_encloser, Map.get(value, :closest_encloser)), unknown}
+  end
+
+  defp flatten_option(:edns_key_tag, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :edns_key_tag_key_tags, Map.get(value, :key_tags)), unknown}
+  end
+
+  defp flatten_option(:edns_client_tag, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :edns_client_tag_tag, Map.get(value, :tag)), unknown}
+  end
+
+  defp flatten_option(:edns_server_tag, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :edns_server_tag_tag, Map.get(value, :tag)), unknown}
+  end
+
+  defp flatten_option(:report_channel, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :report_channel_agent_domain, Map.get(value, :agent_domain)), unknown}
+  end
+
+  defp flatten_option(:zoneversion, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :zoneversion_version, Map.get(value, :version)), unknown}
+  end
+
+  defp flatten_option(:update_lease, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :update_lease_lease, Map.get(value, :lease)), unknown}
+  end
+
+  defp flatten_option(:llq, value, {flat, unknown}) when is_map(value) do
+    flat_updates = %{
+      llq_version: Map.get(value, :version),
+      llq_llq_opcode: Map.get(value, :llq_opcode),
+      llq_error_code: Map.get(value, :error_code),
+      llq_llq_id: Map.get(value, :llq_id),
+      llq_lease_life: Map.get(value, :lease_life)
+    }
+
+    {Map.merge(flat, flat_updates), unknown}
+  end
+
+  defp flatten_option(:umbrella_ident, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :umbrella_ident_ident, Map.get(value, :ident)), unknown}
+  end
+
+  defp flatten_option(:deviceid, value, {flat, unknown}) when is_map(value) do
+    {Map.put(flat, :deviceid_device_id, Map.get(value, :device_id)), unknown}
+  end
+
+  defp flatten_option(:unknown, value, {flat, unknown}) when is_list(value) do
+    unknown_map =
+      Enum.reduce(value, unknown, fn
+        %{code: code, data: data}, acc -> Map.put(acc, code, data)
+        _, acc -> acc
+      end)
+
+    {flat, unknown_map}
+  end
+
+  # All other options go to unknown when they carry a raw code/data payload
+  defp flatten_option(_key, %{code: code, data: data}, {flat, unknown}) do
+    {flat, Map.put(unknown, code, data)}
+  end
+
+  defp flatten_option(_key, _value, acc), do: acc
 
   defp pad_address(addr_bytes, target_size) do
     current_size = byte_size(addr_bytes)
