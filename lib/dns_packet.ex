@@ -358,12 +358,7 @@ defmodule DNSpacket do
   end
 
   @doc false
-  def create_rdata(rdata, :ns, _) do
-    create_domain_name(rdata.name)
-  end
-
-  @doc false
-  def create_rdata(rdata, :cname, _) do
+  def create_rdata(rdata, type, _) when type in [:ns, :cname, :ptr] do
     create_domain_name(rdata.name)
   end
 
@@ -373,11 +368,6 @@ defmodule DNSpacket do
       create_domain_name(rdata.rname) <>
       <<rdata.serial::32, rdata.refresh::32, rdata.retry::32, rdata.expire::32,
         rdata.minimum::32>>
-  end
-
-  @doc false
-  def create_rdata(rdata, :ptr, _) do
-    create_domain_name(rdata.name)
   end
 
   @doc false
@@ -917,16 +907,7 @@ defmodule DNSpacket do
   end
 
   @doc false
-  def parse_rdata(rdata, :ns, _, orig_body) do
-    {_, _, name} = parse_name(rdata, orig_body, "")
-
-    %{
-      name: name
-    }
-  end
-
-  @doc false
-  def parse_rdata(rdata, :cname, _, orig_body) do
+  def parse_rdata(rdata, type, _, orig_body) when type in [:ns, :cname, :ptr] do
     {_, _, name} = parse_name(rdata, orig_body, "")
 
     %{
@@ -955,15 +936,6 @@ defmodule DNSpacket do
       retry: retry,
       expire: expire,
       minimum: minimum
-    }
-  end
-
-  @doc false
-  def parse_rdata(rdata, :ptr, _, orig_body) do
-    {_, _, name} = parse_name(rdata, orig_body, "")
-
-    %{
-      name: name
     }
   end
 
