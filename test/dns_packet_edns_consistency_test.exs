@@ -80,6 +80,47 @@ defmodule DNSpacketEDNSConsistencyTest do
     end
   end
 
+  test "unflatten emits options in the wire-format order when all are present" do
+    all_options =
+      @flat_samples
+      |> Map.values()
+      |> Enum.reduce(&Map.merge/2)
+      |> Map.put(:unknown_options, %{65_001 => <<1>>, 65_002 => <<2>>})
+
+    emitted = EDNS.unflatten(all_options)
+
+    # Deliberately hard-coded (not derived from known_options/0) so that a
+    # reordering of the prepend chain in unflatten/1 fails this test.
+    assert Enum.map(emitted, &option_key/1) == [
+             :edns_client_subnet,
+             :cookie,
+             :nsid,
+             :extended_dns_error,
+             :edns_tcp_keepalive,
+             :padding,
+             :dau,
+             :dhu,
+             :n3u,
+             :edns_expire,
+             :chain,
+             :edns_key_tag,
+             :edns_client_tag,
+             :edns_server_tag,
+             :report_channel,
+             :zoneversion,
+             :update_lease,
+             :llq,
+             :umbrella_ident,
+             :deviceid,
+             # unknown options last, in reversed map-enumeration order
+             65_002,
+             65_001
+           ]
+  end
+
+  defp option_key({key, _value}), do: key
+  defp option_key(%{code: code}), do: code
+
   test "unflatten/flatten round-trips every known option" do
     for key <- EDNS.known_options() do
       flat = Map.fetch!(@flat_samples, key)

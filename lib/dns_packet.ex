@@ -357,6 +357,7 @@ defmodule DNSpacket do
     <<a::8, b::8, c::8, d::8>>
   end
 
+  # :dname is kept separate from this group: its rdata field is .target, not .name
   @doc false
   def create_rdata(rdata, type, _) when type in [:ns, :cname, :ptr] do
     create_domain_name(rdata.name)
@@ -906,6 +907,7 @@ defmodule DNSpacket do
     parse_aaaa_fast(<<a1::16, a2::16, a3::16, a4::16, a5::16, a6::16, a7::16, a8::16>>)
   end
 
+  # :dname is kept separate from this group: its rdata field is .target, not .name
   @doc false
   def parse_rdata(rdata, type, _, orig_body) when type in [:ns, :cname, :ptr] do
     {_, _, name} = parse_name(rdata, orig_body, "")
