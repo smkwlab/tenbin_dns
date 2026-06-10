@@ -31,6 +31,12 @@ defmodule DNSpacket.EDNS do
     :deviceid
   ]
 
+  # Exposed so tests can verify that every known option has matching
+  # encode_option/decode_option/flatten_option/prepend_option clauses
+  # (see test/dns_packet_edns_consistency_test.exs).
+  @doc false
+  def known_options, do: @known_options
+
   @doc false
   def encode_options(%{} = options) do
     options
