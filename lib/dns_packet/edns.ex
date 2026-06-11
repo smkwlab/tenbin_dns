@@ -189,15 +189,17 @@ defmodule DNSpacket.EDNS do
     <<DNS.option_code(:deviceid)::16, byte_size(device_id)::16>> <> device_id
   end
 
-  # Unknown options keep their raw numeric code from the wire
-  def encode_option({:unknown, %{code: code, data: data}}) when is_integer(code) do
+  # Unknown options keep their raw numeric code from the wire. Codes outside
+  # the 16-bit option-code field fail fast instead of being truncated.
+  def encode_option({:unknown, %{code: code, data: data}})
+      when is_integer(code) and code in 0..65_535 do
     <<code::16, byte_size(data)::16>> <> data
   end
 
   # Atom-named codes are still reachable via the public create_edns_options/1
   # input shape (%{unknown: [%{code: :atom, data: ...}]}); unresolvable atoms
   # encode as code 0
-  def encode_option({:unknown, %{code: code, data: data}}) do
+  def encode_option({:unknown, %{code: code, data: data}}) when is_atom(code) do
     option_code = DNS.option_code(code) || 0
     <<option_code::16, byte_size(data)::16>> <> data
   end

@@ -70,6 +70,18 @@ defmodule DNSpacketUnknownOptionsTest do
              <<3::16, 1::16, 1>>
   end
 
+  test "encode_option rejects unknown option codes outside the 16-bit range" do
+    # Out-of-range integer codes must fail fast instead of being silently
+    # truncated into the 16-bit wire field
+    assert_raise FunctionClauseError, fn ->
+      EDNS.encode_option({:unknown, %{code: 65_536, data: <<1>>}})
+    end
+
+    assert_raise FunctionClauseError, fn ->
+      EDNS.encode_option({:unknown, %{code: -1, data: <<1>>}})
+    end
+  end
+
   test "unflatten emits unknown options as encodable tagged tuples" do
     [option] = EDNS.unflatten(%{unknown_options: %{65_001 => <<1, 2, 3>>}})
 
