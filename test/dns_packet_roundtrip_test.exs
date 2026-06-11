@@ -202,8 +202,8 @@ defmodule DNSpacketRoundtripTest do
   end
 
   describe "multi-section round-trip" do
-    test "answer, authority and additional sections all survive" do
-      packet = %DNSpacket{
+    defp multi_section_packet do
+      %DNSpacket{
         id: 0x7777,
         qr: 1,
         aa: 1,
@@ -219,6 +219,13 @@ defmodule DNSpacketRoundtripTest do
             class: :in,
             ttl: 86_400,
             rdata: %{name: "ns1.example.com."}
+          },
+          %{
+            name: "example.com.",
+            type: :ns,
+            class: :in,
+            ttl: 86_400,
+            rdata: %{name: "ns2.example.com."}
           }
         ],
         additional: [
@@ -228,21 +235,48 @@ defmodule DNSpacketRoundtripTest do
             class: :in,
             ttl: 86_400,
             rdata: %{addr: {192, 0, 2, 53}}
+          },
+          %{
+            name: "ns2.example.com.",
+            type: :a,
+            class: :in,
+            ttl: 86_400,
+            rdata: %{addr: {192, 0, 2, 54}}
           }
         ]
       }
+    end
 
-      parsed = roundtrip(packet)
+    test "answer, authority and additional sections all survive" do
+      parsed = roundtrip(multi_section_packet())
 
-      assert length(parsed.answer) == 2
+      # Order-insensitive: section contents must survive regardless of how
+      # issue #98 (section ordering) is eventually resolved
+      assert Enum.sort(Enum.map(parsed.answer, & &1.rdata.addr)) ==
+               [{192, 0, 2, 1}, {192, 0, 2, 2}]
 
-      # NOTE: parse/1 currently returns each section in reverse wire order
-      # (records are accumulated by prepending without a final reverse).
-      # This pins the current behavior; tracked in issue #98.
+      assert Enum.sort(Enum.map(parsed.authority, & &1.rdata.name)) ==
+               ["ns1.example.com.", "ns2.example.com."]
+
+      assert Enum.sort(Enum.map(parsed.additional, & &1.rdata.addr)) ==
+               [{192, 0, 2, 53}, {192, 0, 2, 54}]
+    end
+
+    # parse/1 currently returns every section in reverse wire order (records
+    # are accumulated by prepending without a final reverse). This pins the
+    # current behavior across all three sections; tracked in issue #98 —
+    # update the expectations below when that fix lands.
+    @tag :known_issue
+    test "sections are returned in reverse wire order (issue #98)" do
+      parsed = roundtrip(multi_section_packet())
+
       assert Enum.map(parsed.answer, & &1.rdata.addr) == [{192, 0, 2, 2}, {192, 0, 2, 1}]
 
-      assert [%{type: :ns, rdata: %{name: "ns1.example.com."}}] = parsed.authority
-      assert [%{name: "ns1.example.com.", rdata: %{addr: {192, 0, 2, 53}}}] = parsed.additional
+      assert Enum.map(parsed.authority, & &1.rdata.name) ==
+               ["ns2.example.com.", "ns1.example.com."]
+
+      assert Enum.map(parsed.additional, & &1.rdata.addr) ==
+               [{192, 0, 2, 54}, {192, 0, 2, 53}]
     end
   end
 end
