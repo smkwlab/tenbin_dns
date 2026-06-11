@@ -49,7 +49,8 @@ defmodule Tenbin.DNS.MixProject do
     [
       main: "Tenbin.DNS",
       name: "Tenbin.DNS",
-      source_ref: "v#{@version}",
+      # Tags are unprefixed (e.g. "0.8.0"); keep doc source links aligned
+      source_ref: @version,
       source_url: "https://github.com/smkwlab/tenbin_dns",
       extras: [
         "README.md",
