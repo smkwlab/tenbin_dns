@@ -784,7 +784,15 @@ defmodule DNSpacket do
     {rest3, authority} = parse_answer_fast(rest2, nscount, orig_body, [])
     {_, additional} = parse_answer_fast(rest3, arcount, orig_body, [])
 
-    {question, answer, authority, additional, parse_edns_info(additional)}
+    # The section parsers accumulate by prepending; restore wire order here.
+    # Record order is semantically meaningful in DNS (CNAME chains,
+    # round-robin), see issue #98. additional is reversed before the EDNS
+    # lookup so that (invalid) multi-OPT packets resolve the same OPT record
+    # as the wire order implies.
+    additional_in_order = :lists.reverse(additional)
+
+    {:lists.reverse(question), :lists.reverse(answer), :lists.reverse(authority),
+     additional_in_order, parse_edns_info(additional_in_order)}
   end
 
   # Fast parsing functions with reduced overhead
