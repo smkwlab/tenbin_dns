@@ -189,6 +189,11 @@ defmodule DNSpacket.EDNS do
     <<DNS.option_code(:deviceid)::16, byte_size(device_id)::16>> <> device_id
   end
 
+  # Unknown options keep their raw numeric code from the wire
+  def encode_option({:unknown, %{code: code, data: data}}) when is_integer(code) do
+    <<code::16, byte_size(data)::16>> <> data
+  end
+
   def encode_option({:unknown, %{code: code, data: data}}) do
     option_code = DNS.option_code(code) || 0
     <<option_code::16, byte_size(data)::16>> <> data
@@ -615,7 +620,7 @@ defmodule DNSpacket.EDNS do
     case Map.get(edns_info, :unknown_options) do
       unknown when is_map(unknown) and map_size(unknown) > 0 ->
         unknown
-        |> Enum.map(fn {code, data} -> %{code: code, data: data} end)
+        |> Enum.map(fn {code, data} -> {:unknown, %{code: code, data: data}} end)
         |> Enum.reverse()
 
       _ ->
