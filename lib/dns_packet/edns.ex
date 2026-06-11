@@ -194,6 +194,9 @@ defmodule DNSpacket.EDNS do
     <<code::16, byte_size(data)::16>> <> data
   end
 
+  # Atom-named codes are still reachable via the public create_edns_options/1
+  # input shape (%{unknown: [%{code: :atom, data: ...}]}); unresolvable atoms
+  # encode as code 0
   def encode_option({:unknown, %{code: code, data: data}}) do
     option_code = DNS.option_code(code) || 0
     <<option_code::16, byte_size(data)::16>> <> data

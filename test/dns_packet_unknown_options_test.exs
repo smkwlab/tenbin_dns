@@ -63,6 +63,13 @@ defmodule DNSpacketUnknownOptionsTest do
              DNSpacket.parse_opt_rr(%{}, <<65_001::16, 3::16, 1, 2, 3>>)
   end
 
+  test "create_edns_options accepts atom-named codes in the unknown list" do
+    # The public create_edns_options/1 input shape allows atom option names
+    # in the unknown list; they resolve through DNS.option_code/1 (:nsid => 3)
+    assert DNSpacket.create_edns_options(%{unknown: [%{code: :nsid, data: <<1>>}]}) ==
+             <<3::16, 1::16, 1>>
+  end
+
   test "unflatten emits unknown options as encodable tagged tuples" do
     [option] = EDNS.unflatten(%{unknown_options: %{65_001 => <<1, 2, 3>>}})
 
