@@ -59,6 +59,14 @@ defmodule DNSpacketTest do
       assert DNSpacket.create_rdata(%{txt: txt}, :txt, :in) ==
                <<255, c1::binary, 255, c2::binary, 90, c3::binary>>
     end
+
+    test "create_rdata emits no empty trailing string for exact 255-byte multiples" do
+      txt = String.duplicate("c", 510)
+      <<c1::binary-size(255), c2::binary-size(255)>> = txt
+
+      assert DNSpacket.create_rdata(%{txt: txt}, :txt, :in) ==
+               <<255, c1::binary, 255, c2::binary>>
+    end
   end
 
   describe "packet creation and parsing roundtrip" do
