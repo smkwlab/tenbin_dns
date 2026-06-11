@@ -698,11 +698,14 @@ defmodule DNSpacket do
   end
 
   defp chunk_character_strings(<<chunk::binary-size(255), rest::binary>>, acc) do
-    chunk_character_strings(rest, [<<255, chunk::binary>> | acc])
+    chunk_character_strings(rest, [create_character_string(chunk) | acc])
   end
 
-  # Decode consecutive character-strings into their concatenation; a trailing
-  # incomplete character-string is ignored (graceful degradation)
+  # Decode consecutive character-strings into their concatenation. Once a
+  # length byte overruns the remaining data, that string and everything after
+  # it is discarded — whether it is a truncated trailing string or a bogus
+  # mid-stream length (graceful degradation; see "Malformed Input" in the
+  # parse/1 docs)
   defp parse_character_strings(<<length::8, txt::binary-size(length), rest::binary>>, acc) do
     parse_character_strings(rest, [txt | acc])
   end
