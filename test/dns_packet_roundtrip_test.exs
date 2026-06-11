@@ -121,6 +121,26 @@ defmodule DNSpacketRoundtripTest do
       assert roundtrip_rdata(:txt, rdata) == rdata
     end
 
+    test "TXT with empty value" do
+      assert roundtrip_rdata(:txt, %{txt: ""}) == %{txt: ""}
+    end
+
+    test "TXT at the single character-string limit (255 bytes)" do
+      txt = String.duplicate("a", 255)
+      assert roundtrip_rdata(:txt, %{txt: txt}) == %{txt: txt}
+    end
+
+    test "TXT just above the single character-string limit (256 bytes)" do
+      txt = String.duplicate("b", 256)
+      assert roundtrip_rdata(:txt, %{txt: txt}) == %{txt: txt}
+    end
+
+    test "TXT with a long value spanning multiple character-strings (RFC 1035)" do
+      # e.g. DKIM keys routinely exceed 255 bytes
+      txt = "v=DKIM1; k=rsa; p=" <> String.duplicate("A", 580)
+      assert roundtrip_rdata(:txt, %{txt: txt}) == %{txt: txt}
+    end
+
     test "HINFO" do
       rdata = %{cpu: "ARM64", os: "Linux"}
       assert roundtrip_rdata(:hinfo, rdata) == rdata

@@ -391,7 +391,7 @@ defmodule DNSpacket do
 
   @doc false
   def create_rdata(rdata, :txt, _) do
-    create_character_string(rdata.txt)
+    create_character_strings(rdata.txt)
   end
 
   @doc false
@@ -679,6 +679,41 @@ defmodule DNSpacket do
   @doc false
   def create_character_string(txt), do: <<byte_size(txt)::8, txt::binary>>
 
+  # Encode a binary as consecutive character-strings of at most 255 bytes
+  # each (RFC 1035 §3.3.14); values up to 255 bytes produce the same single
+  # character-string as before. Chunks are collected as iodata to avoid
+  # repeated binary copying on long values.
+  defp create_character_strings(txt) when byte_size(txt) <= 255 do
+    create_character_string(txt)
+  end
+
+  defp create_character_strings(txt) do
+    txt |> chunk_character_strings([]) |> IO.iodata_to_binary()
+  end
+
+  # The terminal clause receives 1..255 bytes: the caller only enters the
+  # loop with > 255 bytes, so the remainder after a 255-byte chunk is >= 1
+  defp chunk_character_strings(txt, acc) when byte_size(txt) <= 255 do
+    Enum.reverse([create_character_string(txt) | acc])
+  end
+
+  defp chunk_character_strings(<<chunk::binary-size(255), rest::binary>>, acc) do
+    chunk_character_strings(rest, [create_character_string(chunk) | acc])
+  end
+
+  # Decode consecutive character-strings into their concatenation. Once a
+  # length byte overruns the remaining data, that string and everything after
+  # it is discarded — whether it is a truncated trailing string or a bogus
+  # mid-stream length (graceful degradation; see "Malformed Input" in the
+  # parse/1 docs)
+  defp parse_character_strings(<<length::8, txt::binary-size(length), rest::binary>>, acc) do
+    parse_character_strings(rest, [txt | acc])
+  end
+
+  defp parse_character_strings(_, acc) do
+    acc |> Enum.reverse() |> IO.iodata_to_binary()
+  end
+
   @doc """
   Parses a DNS packet binary into a DNSpacket struct.
 
@@ -725,10 +760,17 @@ defmodule DNSpacket do
       packet.edns_info.ecs_subnet       # => {192, 168, 1, 0}
       packet.edns_info.unknown_options  # => %{123 => <<...>>}
 
+  ## Malformed Input
+
+  Parsing degrades gracefully rather than raising: unknown record types are
+  wrapped as raw rdata, and a trailing incomplete character-string in TXT
+  rdata is silently ignored. Validate wire data separately if you need to
+  detect such malformations.
+
   ## Performance Features
 
   - Aggressive function inlining for common record types
-  - Binary pattern matching optimization  
+  - Binary pattern matching optimization
   - Fast paths for A/AAAA records
   - Compile-time optimizations enabled
 
@@ -990,19 +1032,13 @@ defmodule DNSpacket do
     }
   end
 
-  # NOTE: Currently supports only single character-string TXT records
-  # RFC 1035 allows multiple character-strings per TXT record, but most practical
-  # use cases involve single strings. Multiple string support could be added in
-  # future versions if needed for SPF records exceeding 255 characters or similar use cases.
+  # RFC 1035 allows multiple character-strings per TXT record; the logical
+  # value is their concatenation (cf. RFC 7208 §3.3 for SPF). String
+  # boundaries are not preserved (see issue #95).
   @doc false
-  def parse_rdata(
-        <<length::unsigned-integer-size(8), txt::binary-size(length), _::binary>>,
-        :txt,
-        _,
-        _
-      ) do
+  def parse_rdata(rdata, :txt, _, _) do
     %{
-      txt: txt
+      txt: parse_character_strings(rdata, [])
     }
   end
 
