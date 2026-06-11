@@ -134,6 +134,7 @@ defmodule DNSpacket do
      parse_name: 3,
      parse_name_acc: 3,
      parse_rdata: 4,
+     parse_sections: 6,
      parse_question_fast: 4,
      parse_answer_fast: 4,
      parse_answer_checkopt_fast: 6,
@@ -717,8 +718,8 @@ defmodule DNSpacket do
   - Compile-time optimizations enabled
 
   """
-  # Speed-optimized parse function with reduced function call overhead
-  # credo:disable-for-next-line Credo.Check.Refactor.ABCSize
+  # Speed-optimized parse function with reduced function call overhead;
+  # parse_sections/6 is inlined, so the split costs no extra call
   def parse(
         <<
           id::unsigned-integer-size(16),
@@ -739,13 +740,8 @@ defmodule DNSpacket do
           body::binary
         >> = orig_body
       ) do
-    # Inline parsing for maximum speed
-    {rest1, question} = parse_question_fast(body, qdcount, orig_body, [])
-    {rest2, answer} = parse_answer_fast(rest1, ancount, orig_body, [])
-    {rest3, authority} = parse_answer_fast(rest2, nscount, orig_body, [])
-    {_, additional} = parse_answer_fast(rest3, arcount, orig_body, [])
-
-    edns_info = parse_edns_info(additional)
+    {question, answer, authority, additional, edns_info} =
+      parse_sections(body, qdcount, ancount, nscount, arcount, orig_body)
 
     %DNSpacket{
       id: id,
@@ -765,6 +761,15 @@ defmodule DNSpacket do
       additional: additional,
       edns_info: edns_info
     }
+  end
+
+  defp parse_sections(body, qdcount, ancount, nscount, arcount, orig_body) do
+    {rest1, question} = parse_question_fast(body, qdcount, orig_body, [])
+    {rest2, answer} = parse_answer_fast(rest1, ancount, orig_body, [])
+    {rest3, authority} = parse_answer_fast(rest2, nscount, orig_body, [])
+    {_, additional} = parse_answer_fast(rest3, arcount, orig_body, [])
+
+    {question, answer, authority, additional, parse_edns_info(additional)}
   end
 
   # Fast parsing functions with reduced overhead
