@@ -10,6 +10,21 @@ defmodule DNSpacket do
   The module is optimized with compile-time optimizations,
   aggressive function inlining, and efficient binary pattern matching.
 
+  ## Public API
+
+  The supported public API of this library is:
+
+  - `create/1` — build the wire-format binary from a `DNSpacket` struct
+  - `parse/1` — parse a wire-format binary into a `DNSpacket` struct
+  - the `DNSpacket` struct itself and the hybrid `edns_info` structure
+    documented below
+
+  Every other public function in this module (and in `DNSpacket.EDNS`) is
+  an internal implementation detail, marked `@doc false`, exposed only for
+  cross-module calls and the test suite. Internal functions may change
+  name, signature or return shape in any release without notice — do not
+  call them from outside this library.
+
   ## Data Structure
 
   The DNSpacket struct represents a complete DNS message with the following fields:

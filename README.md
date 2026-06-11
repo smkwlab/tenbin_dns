@@ -73,6 +73,11 @@ end
 
 ## Usage
 
+The supported public API is `DNSpacket.create/1`, `DNSpacket.parse/1`, the
+`DNSpacket` struct and the hybrid `edns_info` structure shown below. Other
+public functions are internal implementation details and may change in any
+release without notice.
+
 ### Creating DNS packets
 
 ```elixir
