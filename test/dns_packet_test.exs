@@ -2572,13 +2572,10 @@ defmodule DNSpacketTest do
       assert llq_data.version == 1
       assert llq_data.llq_id == 9_876_543_210
 
-      # Verify unknown options are passed through (they remain in old format)
+      # Verify unknown options are passed through as encodable tagged tuples
       unknown_rdatas =
         Enum.filter(opt_record.rdata, fn
-          # Skip tuples
-          {_code, _data} -> false
-          # Match old format unknown options
-          %{code: code} when code in [65_000, 65_001] -> true
+          {:unknown, %{code: code}} when code in [65_000, 65_001] -> true
           _ -> false
         end)
 

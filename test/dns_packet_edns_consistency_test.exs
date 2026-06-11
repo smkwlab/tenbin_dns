@@ -118,8 +118,8 @@ defmodule DNSpacketEDNSConsistencyTest do
            ]
   end
 
+  defp option_key({:unknown, %{code: code}}), do: code
   defp option_key({key, _value}), do: key
-  defp option_key(%{code: code}), do: code
 
   test "flatten silently discards known keys with unexpected value shapes" do
     # Matches the original extract_and_flatten_options/1: a known key whose

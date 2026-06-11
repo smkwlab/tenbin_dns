@@ -1149,7 +1149,8 @@ defmodule DNSpacket do
           opt_rr::binary
         >>
       ) do
-    {key, value} = EDNS.decode_option(DNS.option(code), data)
+    # Unrecognized option codes have no atom name; keep the numeric code
+    {key, value} = EDNS.decode_option(DNS.option(code) || code, data)
 
     updated_map =
       if key == :unknown do
