@@ -1,4 +1,20 @@
 defmodule DNSpacketTest do
+  @moduledoc """
+  Internal-contract tests.
+
+  The supported public API of this library is `DNSpacket.create/1`,
+  `DNSpacket.parse/1`, the `DNSpacket` struct and the hybrid `edns_info`
+  structure — those are covered by `test/dns_packet_roundtrip_test.exs`,
+  `test/dns_packet_edns_consistency_test.exs` and
+  `test/dns_packet_unknown_options_test.exs`.
+
+  The tests in this file intentionally call internal (`@doc false`)
+  functions to pin behavior that a create/parse round-trip cannot reach:
+  malformed and truncated input handling, fallback clauses, name
+  decompression against crafted binaries, ECS edge cases and similar.
+  When internal functions change shape, update these tests freely — the
+  round-trip suites are the compatibility contract, not this file.
+  """
   use ExUnit.Case
   import Bitwise
 
@@ -36,161 +52,21 @@ defmodule DNSpacketTest do
     end
   end
 
-  describe "create_rdata/3 for different record types" do
-    test "creates A record rdata" do
-      rdata = %{addr: {192, 168, 1, 1}}
-      result = DNSpacket.create_rdata(rdata, :a, :in)
-      expected = <<192, 168, 1, 1>>
-      assert result == expected
-    end
-
-    test "creates NS record rdata" do
-      rdata = %{name: "ns1.example.com"}
-      result = DNSpacket.create_rdata(rdata, :ns, :in)
-      expected = <<3, "ns1", 7, "example", 3, "com">>
-      assert result == expected
-    end
-
-    test "creates CNAME record rdata" do
-      rdata = %{name: "alias.example.com"}
-      result = DNSpacket.create_rdata(rdata, :cname, :in)
-      expected = <<5, "alias", 7, "example", 3, "com">>
-      assert result == expected
-    end
-
-    test "creates PTR record rdata" do
-      rdata = %{name: "host.example.com"}
-      result = DNSpacket.create_rdata(rdata, :ptr, :in)
-      expected = <<4, "host", 7, "example", 3, "com">>
-      assert result == expected
-    end
-
-    test "creates MX record rdata" do
-      rdata = %{preference: 10, name: "mail.example.com"}
-      result = DNSpacket.create_rdata(rdata, :mx, :in)
-      expected = <<10::16>> <> <<4, "mail", 7, "example", 3, "com">>
-      assert result == expected
-    end
-
-    test "creates TXT record rdata" do
-      rdata = %{txt: "hello world"}
-      result = DNSpacket.create_rdata(rdata, :txt, :in)
-      expected = <<11, "hello world">>
-      assert result == expected
-    end
-
-    test "creates AAAA record rdata" do
-      rdata = %{addr: {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}}
-      result = DNSpacket.create_rdata(rdata, :aaaa, :in)
-      # Calculate expected value using same logic as implementation
-      addr_int =
-        0x2001 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 +
-          0xDB8 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 +
-          0 * 0x10000 * 0x10000 * 0x10000 * 0x10000 * 0x10000 +
-          0 * 0x10000 * 0x10000 * 0x10000 * 0x10000 +
-          0 * 0x10000 * 0x10000 * 0x10000 +
-          0 * 0x10000 * 0x10000 +
-          0 * 0x10000 +
-          1
-
-      expected = <<addr_int::128>>
-      assert result == expected
-    end
-
-    test "creates SOA record rdata" do
-      rdata = %{
-        mname: "ns1.example.com",
-        rname: "admin.example.com",
-        # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
-        serial: 2_023_010_101,
-        refresh: 7200,
-        retry: 3600,
-        expire: 604_800,
-        minimum: 86_400
-      }
-
-      result = DNSpacket.create_rdata(rdata, :soa, :in)
-
-      # credo:disable-for-next-line Credo.Check.Readability.LargeNumbers
-      expected =
-        <<3, "ns1", 7, "example", 3, "com">> <>
-          <<5, "admin", 7, "example", 3, "com">> <>
-          <<2_023_010_101::32, 7200::32, 3600::32, 604_800::32, 86_400::32>>
-
-      assert result == expected
-    end
-
-    test "creates HINFO record rdata" do
-      rdata = %{cpu: "i386", os: "linux"}
-      result = DNSpacket.create_rdata(rdata, :hinfo, :in)
-      expected = <<4, "i386", 5, "linux">>
-      assert result == expected
-    end
-
-    test "creates CAA record rdata" do
-      rdata = %{flag: 0, tag: "issue", value: "letsencrypt.org"}
-      result = DNSpacket.create_rdata(rdata, :caa, :in)
-      expected = <<0, 5, "issue", "letsencrypt.org">>
-      assert result == expected
-    end
-
-    test "creates rdata for unknown record type" do
-      # Test the fallback case
+  # Internal-contract tests: fallback clauses for unknown record types
+  # cannot be exercised through a create/parse round-trip. Per-type
+  # create/parse behavior is covered by test/dns_packet_roundtrip_test.exs
+  # against the supported public API (create/1 and parse/1).
+  describe "internal contract: rdata fallback clauses" do
+    test "create_rdata returns rdata as-is for unknown record type" do
       rdata = <<1, 2, 3, 4, 5>>
       result = DNSpacket.create_rdata(rdata, :unknown_type, :in)
       assert result == rdata
     end
-  end
 
-  describe "parse_rdata/4 for different record types" do
-    test "parses A record rdata" do
-      rdata = <<192, 168, 1, 1>>
-      result = DNSpacket.parse_rdata(rdata, :a, :in, <<>>)
-      expected = %{addr: {192, 168, 1, 1}}
-      assert result == expected
-    end
-
-    test "parses AAAA record rdata" do
-      rdata = <<0x2001::16, 0xDB8::16, 0::16, 0::16, 0::16, 0::16, 0::16, 1::16>>
-      result = DNSpacket.parse_rdata(rdata, :aaaa, :in, <<>>)
-      expected = %{addr: {0x2001, 0xDB8, 0, 0, 0, 0, 0, 1}}
-      assert result == expected
-    end
-
-    test "parses TXT record rdata" do
-      rdata = <<11, "hello world", 0>>
-      result = DNSpacket.parse_rdata(rdata, :txt, :in, <<>>)
-      expected = %{txt: "hello world"}
-      assert result == expected
-    end
-
-    test "parses HINFO record rdata" do
-      rdata = <<4, "i386", 5, "linux">>
-      result = DNSpacket.parse_rdata(rdata, :hinfo, :in, <<>>)
-      expected = %{cpu: "i386", os: "linux"}
-      assert result == expected
-    end
-
-    test "parses CAA record rdata" do
-      rdata = <<0, 5, "issue", "example.com">>
-      result = DNSpacket.parse_rdata(rdata, :caa, :in, <<>>)
-      expected = %{flag: 0, tag: "issue", value: "example.com"}
-      assert result == expected
-    end
-
-    test "handles unknown record types" do
+    test "parse_rdata wraps raw rdata for unknown record types" do
       rdata = <<1, 2, 3, 4>>
       result = DNSpacket.parse_rdata(rdata, :unknown, :in, <<>>)
       expected = %{type: :unknown, class: :in, rdata: <<1, 2, 3, 4>>}
-      assert result == expected
-    end
-  end
-
-  describe "create_question_item/1" do
-    test "creates question item binary" do
-      question = %{qname: "example.com", qtype: :a, qclass: :in}
-      result = DNSpacket.create_question_item(question)
-      expected = <<7, "example", 3, "com", 1::16, 1::16>>
       assert result == expected
     end
   end
