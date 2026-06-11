@@ -262,21 +262,18 @@ defmodule DNSpacketRoundtripTest do
                [{192, 0, 2, 53}, {192, 0, 2, 54}]
     end
 
-    # parse/1 currently returns every section in reverse wire order (records
-    # are accumulated by prepending without a final reverse). This pins the
-    # current behavior across all three sections; tracked in issue #98 —
-    # update the expectations below when that fix lands.
-    @tag :known_issue
-    test "sections are returned in reverse wire order (issue #98)" do
+    # Record order inside a section is semantically meaningful in DNS
+    # (CNAME chains, round-robin); parse/1 must preserve wire order (#98)
+    test "sections are returned in wire order" do
       parsed = roundtrip(multi_section_packet())
 
-      assert Enum.map(parsed.answer, & &1.rdata.addr) == [{192, 0, 2, 2}, {192, 0, 2, 1}]
+      assert Enum.map(parsed.answer, & &1.rdata.addr) == [{192, 0, 2, 1}, {192, 0, 2, 2}]
 
       assert Enum.map(parsed.authority, & &1.rdata.name) ==
-               ["ns2.example.com.", "ns1.example.com."]
+               ["ns1.example.com.", "ns2.example.com."]
 
       assert Enum.map(parsed.additional, & &1.rdata.addr) ==
-               [{192, 0, 2, 54}, {192, 0, 2, 53}]
+               [{192, 0, 2, 53}, {192, 0, 2, 54}]
     end
   end
 end
