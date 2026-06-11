@@ -391,7 +391,7 @@ defmodule DNSpacket do
 
   @doc false
   def create_rdata(rdata, :txt, _) do
-    create_character_string(rdata.txt)
+    create_character_strings(rdata.txt)
   end
 
   @doc false
@@ -678,6 +678,27 @@ defmodule DNSpacket do
 
   @doc false
   def create_character_string(txt), do: <<byte_size(txt)::8, txt::binary>>
+
+  # Encode a binary as consecutive character-strings of at most 255 bytes
+  # each (RFC 1035 §3.3.14); values up to 255 bytes produce the same single
+  # character-string as before
+  defp create_character_strings(txt) when byte_size(txt) <= 255 do
+    create_character_string(txt)
+  end
+
+  defp create_character_strings(<<chunk::binary-size(255), rest::binary>>) do
+    <<255, chunk::binary, create_character_strings(rest)::binary>>
+  end
+
+  # Decode consecutive character-strings into their concatenation; a trailing
+  # incomplete character-string is ignored (graceful degradation)
+  defp parse_character_strings(<<length::8, txt::binary-size(length), rest::binary>>, acc) do
+    parse_character_strings(rest, [txt | acc])
+  end
+
+  defp parse_character_strings(_, acc) do
+    acc |> Enum.reverse() |> IO.iodata_to_binary()
+  end
 
   @doc """
   Parses a DNS packet binary into a DNSpacket struct.
@@ -990,19 +1011,13 @@ defmodule DNSpacket do
     }
   end
 
-  # NOTE: Currently supports only single character-string TXT records
-  # RFC 1035 allows multiple character-strings per TXT record, but most practical
-  # use cases involve single strings. Multiple string support could be added in
-  # future versions if needed for SPF records exceeding 255 characters or similar use cases.
+  # RFC 1035 allows multiple character-strings per TXT record; the logical
+  # value is their concatenation (cf. RFC 7208 §3.3 for SPF). String
+  # boundaries are not preserved (see issue #95).
   @doc false
-  def parse_rdata(
-        <<length::unsigned-integer-size(8), txt::binary-size(length), _::binary>>,
-        :txt,
-        _,
-        _
-      ) do
+  def parse_rdata(rdata, :txt, _, _) do
     %{
-      txt: txt
+      txt: parse_character_strings(rdata, [])
     }
   end
 

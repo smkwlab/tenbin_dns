@@ -37,6 +37,30 @@ defmodule DNSpacketTest do
     end
   end
 
+  # Internal-contract tests: wire shapes that create/1 never produces.
+  # create_rdata chunks TXT at 255 bytes, so short multi-string records
+  # (e.g. <<3, "abc", 3, "def">>) can only be exercised on the parse side.
+  describe "internal contract: TXT multi-string wire format (RFC 1035)" do
+    test "parse_rdata concatenates multiple character-strings" do
+      rdata = <<3, "abc", 3, "def">>
+      assert DNSpacket.parse_rdata(rdata, :txt, :in, <<>>) == %{txt: "abcdef"}
+    end
+
+    test "parse_rdata ignores a trailing incomplete character-string" do
+      # length byte claims 10 bytes but only 2 remain
+      rdata = <<3, "abc", 10, "xy">>
+      assert DNSpacket.parse_rdata(rdata, :txt, :in, <<>>) == %{txt: "abc"}
+    end
+
+    test "create_rdata chunks long TXT values at 255 bytes" do
+      txt = String.duplicate("a", 600)
+      <<c1::binary-size(255), c2::binary-size(255), c3::binary-size(90)>> = txt
+
+      assert DNSpacket.create_rdata(%{txt: txt}, :txt, :in) ==
+               <<255, c1::binary, 255, c2::binary, 90, c3::binary>>
+    end
+  end
+
   describe "packet creation and parsing roundtrip" do
     test "creates and parses simple query packet" do
       packet = %DNSpacket{
