@@ -789,10 +789,10 @@ defmodule DNSpacket do
     # round-robin), see issue #98. additional is reversed before the EDNS
     # lookup so that (invalid) multi-OPT packets resolve the same OPT record
     # as the wire order implies.
-    additional_in_order = :lists.reverse(additional)
+    additional_in_order = Enum.reverse(additional)
 
-    {:lists.reverse(question), :lists.reverse(answer), :lists.reverse(authority),
-     additional_in_order, parse_edns_info(additional_in_order)}
+    {Enum.reverse(question), Enum.reverse(answer), Enum.reverse(authority), additional_in_order,
+     parse_edns_info(additional_in_order)}
   end
 
   # Fast parsing functions with reduced overhead
