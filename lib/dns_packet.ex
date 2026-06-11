@@ -786,7 +786,9 @@ defmodule DNSpacket do
 
     # The section parsers accumulate by prepending; restore wire order here.
     # Record order is semantically meaningful in DNS (CNAME chains,
-    # round-robin), see issue #98.
+    # round-robin), see issue #98. additional is reversed before the EDNS
+    # lookup so that (invalid) multi-OPT packets resolve the same OPT record
+    # as the wire order implies.
     additional_in_order = :lists.reverse(additional)
 
     {:lists.reverse(question), :lists.reverse(answer), :lists.reverse(authority),
