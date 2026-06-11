@@ -72,6 +72,8 @@ defmodule PerformanceBench do
     complex_response_bin = DNSpacket.create(@complex_response)
     edns_response_bin = DNSpacket.create(@edns_response)
 
+    sanity_check_edns(edns_response_bin)
+
     Benchee.run(
       %{
         "create simple query" => fn -> DNSpacket.create(@simple_query) end,
@@ -94,6 +96,22 @@ defmodule PerformanceBench do
       memory_time: 1,
       formatters: [Benchee.Formatters.Console]
     )
+  end
+
+  # Guard against API drift: if the flat edns_info shape above ever stops
+  # matching what create/1 expects, the EDNS cases would silently measure
+  # an empty OPT record. Crash loudly instead.
+  defp sanity_check_edns(edns_response_bin) do
+    parsed = DNSpacket.parse(edns_response_bin)
+
+    %{
+      ecs_family: 1,
+      ecs_subnet: {192, 168, 1, 0},
+      cookie_client: <<1, 2, 3, 4, 5, 6, 7, 8>>,
+      unknown_options: %{65_001 => <<1, 2, 3>>}
+    } = Map.take(parsed.edns_info, [:ecs_family, :ecs_subnet, :cookie_client, :unknown_options])
+
+    :ok
   end
 end
 
