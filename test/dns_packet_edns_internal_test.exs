@@ -1939,74 +1939,11 @@ defmodule DNSpacketEDNSInternalTest do
       assert is_map(parsed.edns_info.unknown_options)
     end
 
-    test "handles EDNS expire option with different formats" do
-      # Test EDNS expire with nil (empty data)
-      packet = %DNSpacket{
-        id: 0x2222,
-        question: [%{qname: "expire.test.", qtype: :a, qclass: :in}],
-        edns_info: %{
-          edns_expire: nil
-        }
-      }
-
-      binary = DNSpacket.create(packet)
-      parsed = DNSpacket.parse(binary)
-
-      assert parsed.id == 0x2222
-      # Just check that packet was parsed successfully
-      assert is_struct(parsed, DNSpacket)
-    end
-
-    test "handles Chain option with trust point" do
-      packet = %DNSpacket{
-        id: 0x3333,
-        question: [%{qname: "chain.test.", qtype: :a, qclass: :in}],
-        edns_info: %{
-          chain_point_of_trust: "trust.example.com."
-        }
-      }
-
-      binary = DNSpacket.create(packet)
-      parsed = DNSpacket.parse(binary)
-
-      assert parsed.id == 0x3333
-      # Just check that packet was parsed successfully
-      assert is_struct(parsed, DNSpacket)
-    end
-
-    test "handles Key Tag option" do
-      packet = %DNSpacket{
-        id: 0x4444,
-        question: [%{qname: "keytag.test.", qtype: :dnskey, qclass: :in}],
-        edns_info: %{
-          edns_key_tag_list: [12_345, 67_890]
-        }
-      }
-
-      binary = DNSpacket.create(packet)
-      parsed = DNSpacket.parse(binary)
-
-      assert parsed.id == 0x4444
-      # Just check that packet was parsed successfully
-      assert is_struct(parsed, DNSpacket)
-    end
-
-    test "creates comprehensive EDNS options for maximum coverage" do
-      # Test multiple EDNS options that aren't fully covered yet
-      edns_info = %{
-        edns_expire: nil,
-        chain_point_of_trust: "closest.example.com.",
-        edns_client_tag_tags: [1234],
-        edns_server_tag_tags: [5678],
-        report_channel_agent_domain: "agent.example.com.",
-        update_lease_lease_time: 3600
-      }
-
-      result = DNSpacket.create_edns_info_record(edns_info)
-      # Should successfully create EDNS info record
-      assert is_map(result)
-      assert result.type == :opt
-    end
+    # NOTE: tests for edns_expire / chain / edns_key_tag / client-server tag /
+    # update_lease / report_channel creation were removed in #101: they built
+    # edns_info with non-canonical keys (silently ignored by unflatten) and
+    # asserted nothing beyond parse success. Canonical-key coverage for all
+    # of these options lives in dns_packet_edns_consistency_test.exs.
 
     test "creates DNSSEC record types for coverage" do
       # DNAME record
