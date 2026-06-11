@@ -142,9 +142,6 @@ defmodule DNSpacket do
      parse_aaaa_fast: 1
    ]}
 
-  # Compile-time optimization for maximum speed
-  @compile [:native, {:hipe, [:verbose, :o3]}]
-
   defstruct id: 0,
             qr: 0,
             opcode: 0,
