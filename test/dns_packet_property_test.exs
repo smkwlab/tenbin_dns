@@ -31,6 +31,9 @@ defmodule DNSpacketPropertyTest do
 
       parsed = roundtrip(packet)
 
+      # :rdlength is added by parse/1 at the record level only, never
+      # inside rdata — the pattern match above separates it, so the rdata
+      # comparison needs no stripping (unlike the whole-record property)
       assert [%{name: ^name, type: ^type, class: :in, ttl: ^ttl, rdata: parsed_rdata}] =
                parsed.answer
 

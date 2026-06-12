@@ -33,7 +33,7 @@ defmodule DNSGenerators do
   # --- addresses -----------------------------------------------------
 
   def ipv4 do
-    map({integer(0..255), integer(0..255), integer(0..255), integer(0..255)}, & &1)
+    tuple({integer(0..255), integer(0..255), integer(0..255), integer(0..255)})
   end
 
   def ipv6 do
@@ -311,6 +311,8 @@ defmodule DNSGenerators do
     end)
   end
 
+  # Both prefix bounds are exercised: integer(0..32) generates the edges,
+  # 0 keeps no bits ({0,0,0,0}) and 32 appends an empty zero-fill
   defp mask_ipv4({a, b, c, d}, prefix) do
     <<keep::bitstring-size(^prefix), _::bitstring>> = <<a, b, c, d>>
     <<m1, m2, m3, m4>> = <<keep::bitstring, 0::size(32 - prefix)>>
