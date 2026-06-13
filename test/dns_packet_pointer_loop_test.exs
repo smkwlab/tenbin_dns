@@ -38,6 +38,22 @@ defmodule DNSpacketPointerLoopTest do
       packet = header() <> <<0xC0, 0x0E, 0xC0, 0x0E>>
       assert DNSpacket.parse_safe(packet) == {:error, :malformed}
     end
+
+    test "a pointer to exactly the message end (offset == byte_size) is rejected" do
+      # packet is 14 bytes; the pointer at offset 12 targets offset 14.
+      # The guard is offset < ceiling, and ceiling only ever decreases from
+      # its initial byte_size(orig_body), so offset == byte_size can never
+      # pass — it is rejected before the inner slice could match an empty
+      # tmp_body.
+      packet = header() <> <<0xC0, 0x0E>>
+      assert byte_size(packet) == 14
+      assert DNSpacket.parse_safe(packet) == {:error, :malformed}
+    end
+
+    test "a pointer past the message end (offset > byte_size) is rejected" do
+      packet = header() <> <<0xC0, 0x64>>
+      assert DNSpacket.parse_safe(packet) == {:error, :malformed}
+    end
   end
 
   describe "legitimate backward compression still decodes" do
