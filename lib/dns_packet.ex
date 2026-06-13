@@ -170,7 +170,7 @@ defmodule DNSpacket do
               create_character_string: 1,
               add_rdlength: 1,
               parse_name: 3,
-              parse_name_acc: 3,
+              parse_name_acc: 4,
               parse_sections: 6,
               parse_question_fast: 4,
               parse_answer_fast: 4,
@@ -567,14 +567,12 @@ defmodule DNSpacket do
 
   ## Limitations
 
-  "Safe" here means it returns `{:error, _}` instead of raising on input it
-  cannot parse — it does **not** bound the work done. A maliciously crafted
-  compression-pointer loop (a name pointer that cycles) makes the underlying
-  `parse/1` recurse without terminating, exhausting CPU/memory; `parse_safe/1`
-  does not detect or interrupt that. For untrusted sources, also apply an
-  upstream limit (packet size cap and/or a per-parse timeout, e.g. parsing
-  inside a `Task` with `Task.yield/2` + `Task.shutdown/1`). Bounded pointer
-  following is tracked separately in #116.
+  "Safe" here means it returns `{:error, _}` instead of raising and does not
+  loop on malformed input. Name compression pointers are bounded to
+  strictly-decreasing offsets (#116), so a crafted pointer cycle is rejected
+  as `:malformed` rather than looping. The work is still proportional to the
+  packet size, so for untrusted sources a packet-size cap upstream remains
+  good practice.
   """
   @spec parse_safe(binary()) :: {:ok, t()} | {:error, parse_error()}
   def parse_safe(binary) when is_binary(binary) and byte_size(binary) < 12 do
@@ -707,29 +705,41 @@ defmodule DNSpacket do
   # names with it; local callers still get the @compile :inline benefit
   @doc false
   def parse_name(body, orig_body, "") do
-    parse_name_acc(body, orig_body, [])
+    parse_name_acc(body, orig_body, [], byte_size(orig_body))
   end
 
   def parse_name(body, orig_body, result) do
-    parse_name_acc(body, orig_body, [result])
+    parse_name_acc(body, orig_body, [result], byte_size(orig_body))
   end
 
-  defp parse_name_acc(<<0::8, body::binary>>, orig_body, []) do
+  # `ceiling` is the strictly-decreasing bound a compression pointer must
+  # stay under: a pointer may only point backward (RFC 1035 §4.1.4), so each
+  # followed pointer's offset must be < the offset we last jumped to. The
+  # jump targets therefore strictly decrease, making loops impossible. A
+  # pointer that violates this (offset >= ceiling) matches no clause and
+  # raises FunctionClauseError, which parse_safe/1 maps to :malformed (#116).
+  defp parse_name_acc(<<0::8, body::binary>>, orig_body, [], _ceiling) do
     {body, orig_body, "."}
   end
 
-  defp parse_name_acc(<<0::8, body::binary>>, orig_body, acc) do
+  defp parse_name_acc(<<0::8, body::binary>>, orig_body, acc, _ceiling) do
     {body, orig_body, IO.iodata_to_binary(Enum.reverse(acc))}
   end
 
-  defp parse_name_acc(<<0b11::2, offset::14, body::binary>>, orig_body, acc) do
+  defp parse_name_acc(<<0b11::2, offset::14, body::binary>>, orig_body, acc, ceiling)
+       when offset < ceiling do
     <<_::binary-size(^offset), tmp_body::binary>> = orig_body
-    {_, _, name} = parse_name_acc(tmp_body, orig_body, [])
+    {_, _, name} = parse_name_acc(tmp_body, orig_body, [], offset)
     {body, orig_body, IO.iodata_to_binary(Enum.reverse([name | acc]))}
   end
 
-  defp parse_name_acc(<<length::8, name::binary-size(length), body::binary>>, orig_body, acc) do
-    parse_name_acc(body, orig_body, ["." | [name | acc]])
+  defp parse_name_acc(
+         <<length::8, name::binary-size(length), body::binary>>,
+         orig_body,
+         acc,
+         ceiling
+       ) do
+    parse_name_acc(body, orig_body, ["." | [name | acc]], ceiling)
   end
 
   @doc false

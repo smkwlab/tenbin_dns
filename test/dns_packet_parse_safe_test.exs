@@ -84,17 +84,18 @@ defmodule DNSpacketParseSafeTest do
   end
 
   describe "no-raise contract (fuzz)" do
-    # Bytes are kept in 0..63 so the generator never emits a compression
-    # pointer (a 0b11-prefixed byte is >= 0xC0). That keeps the fuzz
-    # hang-free — pointer-loop resistance is a separate, pre-existing
-    # concern shared with parse/1 and out of scope here. The point of this
-    # property is to confirm parse_safe's narrowed rescue is exhaustive:
-    # malformed input must always come back as a tagged tuple, never raise.
-    # If parse/1 raised an exception type the rescue does not cover, the
-    # case below would crash and surface it with the shrunk input.
+    # Full 0..255 bytes, so the generator freely produces compression
+    # pointers (0b11-prefixed bytes). Since #116 bounds pointer following to
+    # strictly-decreasing offsets, a pointer either resolves or raises
+    # FunctionClauseError — it can no longer loop, so the fuzz cannot hang.
+    # The point of this property is to confirm parse_safe's narrowed rescue
+    # is exhaustive: malformed input must always come back as a tagged
+    # tuple, never raise. If parse/1 raised an exception type the rescue
+    # does not cover, the case below would crash and surface it with the
+    # shrunk input.
     defp fuzz_binary do
       StreamData.map(
-        StreamData.list_of(StreamData.integer(0..63), max_length: 48),
+        StreamData.list_of(StreamData.integer(0..255), max_length: 48),
         &:erlang.list_to_binary/1
       )
     end
