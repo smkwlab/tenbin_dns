@@ -56,7 +56,8 @@ defmodule DNSpacket do
   - `type` - Record type (`:a`, `:ns`, `:cname`, etc.)
   - `class` - Record class (typically `:in`)
   - `ttl` - Time to live in seconds
-  - `rdata` - Record-specific data
+  - `rdata` - Record-specific data; the per-type map shape is documented in
+    `DNSpacket.RData` (see `t:DNSpacket.RData.rdata/0`)
 
   ### Question Format
 
@@ -87,19 +88,42 @@ defmodule DNSpacket do
   are accessible directly as top-level fields, while unknown options are
   preserved in a separate map.
 
-  ### Naming Convention
+  ### Base Fields
 
-  The structure follows industry-standard naming conventions:
+  Always present when `edns_info` is set:
 
-  - **Industry-standard abbreviations** for well-known options:
-    - `edns_client_subnet` → `ecs_family`, `ecs_subnet`, `ecs_source_prefix`, `ecs_scope_prefix`
-    - `nsid` → `nsid` (single field)
-    - `dau`, `dhu`, `n3u` → `dau_algorithms`, `dhu_algorithms`, `n3u_algorithms`
+  - `payload_size` - requestor's UDP payload size (16-bit)
+  - `ex_rcode` - upper 8 bits of the extended RCODE
+  - `version` - EDNS version (0)
+  - `dnssec` - DNSSEC OK (DO) bit (`0` or `1`)
+  - `z` - remaining 15 bits of the flags field
 
-  - **Full names** for complex or less common options:
-    - `extended_dns_error` → `extended_dns_error_info_code`, `extended_dns_error_extra_text`
-    - `edns_tcp_keepalive` → `edns_tcp_keepalive_timeout`, `edns_tcp_keepalive_raw_data`
-    - `cookie` → `cookie_client`, `cookie_server`
+  ### Option Fields
+
+  Each EDNS option flattens to one or more top-level keys. A key is only
+  present when its option appears in the packet; otherwise the field is
+  absent (not `nil`). The full set:
+
+  | Option | Flattened key(s) |
+  |--------|------------------|
+  | `edns_client_subnet` | `ecs_family`, `ecs_subnet`, `ecs_source_prefix`, `ecs_scope_prefix` |
+  | `cookie` | `cookie_client` (8 bytes), `cookie_server` (binary or `nil`) |
+  | `nsid` | `nsid` |
+  | `extended_dns_error` | `extended_dns_error_info_code`, `extended_dns_error_extra_text` |
+  | `edns_tcp_keepalive` | `edns_tcp_keepalive_timeout`, `edns_tcp_keepalive_raw_data` |
+  | `padding` | `padding_length` |
+  | `dau` / `dhu` / `n3u` | `dau_algorithms` / `dhu_algorithms` / `n3u_algorithms` (list of ints) |
+  | `edns_expire` | `edns_expire_expire` |
+  | `chain` | `chain_closest_encloser` |
+  | `edns_key_tag` | `edns_key_tag_key_tags` (list of ints) |
+  | `edns_client_tag` | `edns_client_tag_tag` |
+  | `edns_server_tag` | `edns_server_tag_tag` |
+  | `report_channel` | `report_channel_agent_domain` |
+  | `zoneversion` | `zoneversion_version` |
+  | `update_lease` | `update_lease_lease` |
+  | `llq` | `llq_version`, `llq_llq_opcode`, `llq_error_code`, `llq_llq_id`, `llq_lease_life` |
+  | `umbrella_ident` | `umbrella_ident_ident` |
+  | `deviceid` | `deviceid_device_id` |
 
   - **Unknown options** are stored in `unknown_options` as a map: `%{code => data}`
 
