@@ -69,5 +69,16 @@ defmodule DNSpacketParseSafeTest do
       truncated = <<0x1234::16, 0::16, 1::16, 0::16, 0::16, 0::16>>
       assert DNSpacket.parse_safe(truncated) == {:error, :malformed}
     end
+
+    test "an rdata field truncated inside an otherwise-framed record is {:error, :malformed}" do
+      # One answer: root name, SOA (type 6), IN, ttl 0, rdlength 2, rdata
+      # <<0, 0>>. The framing is intact (rdata is exactly rdlength bytes),
+      # but SOA decoding consumes both bytes as empty names and then the
+      # 20-byte serial/refresh/... match fails -> MatchError, the other
+      # exception the narrowed rescue must cover.
+      header = <<0x1234::16, 0::16, 0::16, 1::16, 0::16, 0::16>>
+      answer = <<0, 0, 6, 0, 1, 0, 0, 0, 0, 0, 2, 0, 0>>
+      assert DNSpacket.parse_safe(header <> answer) == {:error, :malformed}
+    end
   end
 end

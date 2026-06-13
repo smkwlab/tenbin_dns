@@ -573,10 +573,13 @@ defmodule DNSpacket do
   def parse_safe(binary) when is_binary(binary) do
     {:ok, parse(binary)}
   rescue
-    # parse/1 raises FunctionClauseError / MatchError when a section or
-    # record is truncated mid-field; surface it as a single category
-    # rather than leaking the internal exception
-    _ -> {:error, :malformed}
+    # A truncated section/record makes a binary pattern fail to match:
+    # FunctionClauseError (no parse clause matches the leftover bytes) or
+    # MatchError (a `<<...>> = rest` inside an rdata clause). Map only those
+    # to :malformed; anything else (e.g. a genuine internal bug) keeps
+    # propagating so it is not silently swallowed.
+    _error in [FunctionClauseError, MatchError] ->
+      {:error, :malformed}
   end
 
   def parse_safe(_), do: {:error, :not_binary}
