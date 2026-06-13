@@ -39,6 +39,7 @@ defmodule DNSpacketPointerLoopTest do
       assert DNSpacket.parse_safe(packet) == {:error, :malformed}
     end
 
+    @tag timeout: 2_000
     test "a pointer to exactly the message end (offset == byte_size) is rejected" do
       # packet is 14 bytes; the pointer at offset 12 targets offset 14.
       # The guard is offset < ceiling, and ceiling only ever decreases from
@@ -50,6 +51,7 @@ defmodule DNSpacketPointerLoopTest do
       assert DNSpacket.parse_safe(packet) == {:error, :malformed}
     end
 
+    @tag timeout: 2_000
     test "a pointer past the message end (offset > byte_size) is rejected" do
       packet = header() <> <<0xC0, 0x64>>
       assert DNSpacket.parse_safe(packet) == {:error, :malformed}
