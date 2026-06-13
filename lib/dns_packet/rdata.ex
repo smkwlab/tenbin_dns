@@ -15,9 +15,180 @@ defmodule DNSpacket.RData do
 
   The round-trip contract is pinned by dns_packet_roundtrip_test.exs and
   the property suite (#107).
+
+  ## Record rdata shapes
+
+  Each record type's `rdata` is a map with the fields below. This is the
+  shape `DNSpacket.parse/1` returns in every record's `:rdata`, and the
+  shape `DNSpacket.create/1` expects, with one asymmetry: NSEC
+  `type_bit_maps` is *returned* as a list of type atoms but `create/1`
+  *also* accepts a pre-built bitmap binary (see `t:nsec_rdata/0`).
+
+  Integer widths note the wire field size; addresses are `:inet` address
+  tuples (4-element for IPv4, 8-element for IPv6). Domain names are dotted
+  strings that must carry the trailing root label (`"example.com."`, not
+  `"example.com"`) — `create/1` encodes labels verbatim and a missing
+  trailing dot produces an unterminated name on the wire.
+
+  | Type | Fields |
+  |------|--------|
+  | `:a` | `addr` (IPv4 tuple) |
+  | `:aaaa` | `addr` (IPv6 tuple) |
+  | `:ns` / `:cname` / `:ptr` | `name` |
+  | `:dname` | `target` |
+  | `:soa` | `mname`, `rname`, `serial`, `refresh`, `retry`, `expire`, `minimum` (all 32-bit) |
+  | `:mx` | `preference` (16-bit), `name` |
+  | `:txt` | `txt` (binary; ≥256 bytes is split into RFC 1035 character-strings on encode and rejoined on decode, see #95) |
+  | `:hinfo` | `cpu`, `os` (each ≤255-byte binary) |
+  | `:caa` | `flag` (8-bit), `tag`, `value` |
+  | `:srv` | `priority`, `weight`, `port` (16-bit), `target` |
+  | `:naptr` | `order`, `preference` (16-bit), `flags`, `services`, `regexp`, `replacement` |
+  | `:dnskey` | `flags` (16-bit), `protocol`, `algorithm` (8-bit), `public_key` |
+  | `:ds` | `key_tag` (16-bit), `algorithm`, `digest_type` (8-bit), `digest` |
+  | `:rrsig` | `type_covered` (16-bit), `algorithm`, `labels` (8-bit), `original_ttl`, `signature_expiration`, `signature_inception` (32-bit), `key_tag` (16-bit), `signer_name`, `signature` |
+  | `:nsec` | `next_domain_name`, `type_bit_maps` (list of type atoms) |
+  | `:svcb` / `:https` | `priority` (16-bit), `target`, `svc_params` (see `t:svc_params/0`) |
+
+  Unknown record types decode to `%{type: type, class: class, rdata: binary}`
+  (the raw rdata) and encode by passing a raw binary straight through.
   """
 
   import Bitwise
+
+  @typedoc "IPv4 address record."
+  @type a_rdata :: %{addr: :inet.ip4_address()}
+
+  @typedoc "IPv6 address record."
+  @type aaaa_rdata :: %{addr: :inet.ip6_address()}
+
+  @typedoc "Single-name records: NS, CNAME, PTR."
+  @type name_rdata :: %{name: String.t()}
+
+  @typedoc "DNAME record (target rather than name)."
+  @type dname_rdata :: %{target: String.t()}
+
+  @typedoc "SOA record."
+  @type soa_rdata :: %{
+          mname: String.t(),
+          rname: String.t(),
+          serial: non_neg_integer(),
+          refresh: non_neg_integer(),
+          retry: non_neg_integer(),
+          expire: non_neg_integer(),
+          minimum: non_neg_integer()
+        }
+
+  @typedoc "MX record."
+  @type mx_rdata :: %{preference: non_neg_integer(), name: String.t()}
+
+  @typedoc """
+  TXT record. The value is the concatenation of one or more RFC 1035
+  character-strings; boundaries are not preserved (see #95).
+  """
+  @type txt_rdata :: %{txt: binary()}
+
+  @typedoc "HINFO record."
+  @type hinfo_rdata :: %{cpu: binary(), os: binary()}
+
+  @typedoc "CAA record."
+  @type caa_rdata :: %{flag: byte(), tag: binary(), value: binary()}
+
+  @typedoc "SRV record."
+  @type srv_rdata :: %{
+          priority: non_neg_integer(),
+          weight: non_neg_integer(),
+          port: non_neg_integer(),
+          target: String.t()
+        }
+
+  @typedoc "NAPTR record."
+  @type naptr_rdata :: %{
+          order: non_neg_integer(),
+          preference: non_neg_integer(),
+          flags: binary(),
+          services: binary(),
+          regexp: binary(),
+          replacement: String.t()
+        }
+
+  @typedoc "DNSKEY record."
+  @type dnskey_rdata :: %{
+          flags: non_neg_integer(),
+          protocol: byte(),
+          algorithm: byte(),
+          public_key: binary()
+        }
+
+  @typedoc "DS record."
+  @type ds_rdata :: %{
+          key_tag: non_neg_integer(),
+          algorithm: byte(),
+          digest_type: byte(),
+          digest: binary()
+        }
+
+  @typedoc "RRSIG record."
+  @type rrsig_rdata :: %{
+          type_covered: non_neg_integer(),
+          algorithm: byte(),
+          labels: byte(),
+          original_ttl: non_neg_integer(),
+          signature_expiration: non_neg_integer(),
+          signature_inception: non_neg_integer(),
+          key_tag: non_neg_integer(),
+          signer_name: String.t(),
+          signature: binary()
+        }
+
+  @typedoc """
+  NSEC record. On decode `type_bit_maps` is a list of type atoms (unknown
+  codes stay as integers); on encode a raw bitmap binary is also accepted.
+  """
+  @type nsec_rdata :: %{
+          next_domain_name: String.t(),
+          type_bit_maps: [atom() | non_neg_integer()] | binary()
+        }
+
+  @typedoc """
+  SVCB/HTTPS service parameters. Known keys are decoded to atoms; any other
+  key stays as its numeric SvcParamKey with the raw value binary.
+  """
+  @type svc_params :: %{
+          optional(:alpn) => [binary()],
+          optional(:port) => non_neg_integer(),
+          optional(:ipv4_hints) => [:inet.ip4_address()],
+          optional(:ipv6_hints) => [:inet.ip6_address()],
+          optional(non_neg_integer()) => binary()
+        }
+
+  @typedoc "SVCB / HTTPS record."
+  @type svcb_rdata :: %{priority: non_neg_integer(), target: String.t(), svc_params: svc_params()}
+
+  @typedoc """
+  Fallback shape for record types without a dedicated codec clause: the raw
+  rdata is kept verbatim alongside its type/class.
+  """
+  @type unknown_rdata :: %{type: atom(), class: atom(), rdata: binary()}
+
+  @typedoc "Any record's rdata, in the canonical parsed/created form."
+  @type rdata ::
+          a_rdata()
+          | aaaa_rdata()
+          | name_rdata()
+          | dname_rdata()
+          | soa_rdata()
+          | mx_rdata()
+          | txt_rdata()
+          | hinfo_rdata()
+          | caa_rdata()
+          | srv_rdata()
+          | naptr_rdata()
+          | dnskey_rdata()
+          | ds_rdata()
+          | rrsig_rdata()
+          | nsec_rdata()
+          | svcb_rdata()
+          | unknown_rdata()
 
   # Fast paths keep their inlining within this module
   @compile {:inline,
