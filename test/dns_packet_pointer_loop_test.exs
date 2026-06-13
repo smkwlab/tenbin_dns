@@ -55,5 +55,21 @@ defmodule DNSpacketPointerLoopTest do
       assert hd(parsed.answer).name == "a."
       assert hd(parsed.answer).rdata == %{addr: {192, 0, 2, 1}}
     end
+
+    test "a chained pointer (label then pointer, pointed-to by another pointer) decodes" do
+      # Exercises the strictly-decreasing chain the review asked about:
+      # answer2's name is a pointer to answer1's name (offset 21), whose
+      # own name is the label "z" followed by a pointer to the question
+      # name "x.y." at offset 12. Resolving answer2 jumps 21 -> 12, each
+      # strictly smaller, yielding "z.x.y." — a legitimate two-hop chain.
+      question = <<1, ?x, 1, ?y, 0, 0x00, 0x01, 0x00, 0x01>>
+      rr_tail = <<0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x04, 192, 0, 2, 1>>
+      answer1 = <<1, ?z, 0xC0, 0x0C>> <> rr_tail
+      answer2 = <<0xC0, 0x15>> <> rr_tail
+      packet = header(1, 2) <> question <> answer1 <> answer2
+
+      assert {:ok, parsed} = DNSpacket.parse_safe(packet)
+      assert Enum.map(parsed.answer, & &1.name) == ["z.x.y.", "z.x.y."]
+    end
   end
 end
