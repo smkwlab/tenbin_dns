@@ -466,10 +466,15 @@ defmodule DNSpacket do
 
   ## Malformed Input
 
-  Parsing degrades gracefully rather than raising: unknown record types are
+  Parsing degrades gracefully where it can: unknown record types are
   wrapped as raw rdata, and a trailing incomplete character-string in TXT
-  rdata is silently ignored. Validate wire data separately if you need to
-  detect such malformations.
+  rdata is silently ignored. Input that cannot be parsed at all (a binary
+  shorter than the 12-byte header, or a record section truncated mid-field)
+  raises, since `parse/1` is meant for trusted input on the hot path.
+
+  For untrusted input (e.g. packets straight off the network), use
+  `parse_safe/1`, which returns `{:ok, packet} | {:error, reason}` instead
+  of raising.
 
   ## Performance Features
 
@@ -479,6 +484,7 @@ defmodule DNSpacket do
   - Compile-time optimizations enabled
 
   """
+  @spec parse(binary()) :: t()
   # Speed-optimized parse function with reduced function call overhead;
   # parse_sections/6 is inlined, so the split costs no extra call
   def parse(
@@ -523,6 +529,57 @@ defmodule DNSpacket do
       edns_info: edns_info
     }
   end
+
+  @typedoc """
+  Why `parse_safe/1` could not parse a binary:
+
+  - `:not_binary` - the argument was not a binary
+  - `:invalid_header` - fewer than the 12 bytes a DNS header needs
+  - `:malformed` - the header parsed but a section/record could not (a
+    truncated record, or an embedded length pointing past the data)
+  """
+  @type parse_error :: :not_binary | :invalid_header | :malformed
+
+  @doc """
+  Parses a DNS packet binary like `parse/1`, but returns a tagged tuple
+  instead of raising.
+
+  Use this for untrusted input (packets received over the network); use
+  `parse/1` for trusted input where a parse failure is a programming error.
+
+  Returns `{:ok, packet}` for any binary `parse/1` accepts — including the
+  malformed-but-recoverable inputs `parse/1` degrades on (unknown record
+  types, a trailing truncated TXT character-string). Returns
+  `{:error, reason}` (see `t:parse_error/0`) only when the binary genuinely
+  cannot be parsed.
+
+  ## Examples
+
+      iex> {:ok, packet} = DNSpacket.parse_safe(DNSpacket.create(%DNSpacket{id: 1}))
+      iex> packet.id
+      1
+
+      iex> DNSpacket.parse_safe(<<0, 1, 2>>)
+      {:error, :invalid_header}
+
+      iex> DNSpacket.parse_safe(:not_a_binary)
+      {:error, :not_binary}
+  """
+  @spec parse_safe(binary()) :: {:ok, t()} | {:error, parse_error()}
+  def parse_safe(binary) when is_binary(binary) and byte_size(binary) < 12 do
+    {:error, :invalid_header}
+  end
+
+  def parse_safe(binary) when is_binary(binary) do
+    {:ok, parse(binary)}
+  rescue
+    # parse/1 raises FunctionClauseError / MatchError when a section or
+    # record is truncated mid-field; surface it as a single category
+    # rather than leaking the internal exception
+    _ -> {:error, :malformed}
+  end
+
+  def parse_safe(_), do: {:error, :not_binary}
 
   defp parse_sections(body, qdcount, ancount, nscount, arcount, orig_body) do
     {rest1, question} = parse_question_fast(body, qdcount, orig_body, [])
