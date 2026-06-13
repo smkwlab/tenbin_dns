@@ -564,6 +564,17 @@ defmodule DNSpacket do
 
       iex> DNSpacket.parse_safe(:not_a_binary)
       {:error, :not_binary}
+
+  ## Limitations
+
+  "Safe" here means it returns `{:error, _}` instead of raising on input it
+  cannot parse — it does **not** bound the work done. A maliciously crafted
+  compression-pointer loop (a name pointer that cycles) makes the underlying
+  `parse/1` recurse without terminating, exhausting CPU/memory; `parse_safe/1`
+  does not detect or interrupt that. For untrusted sources, also apply an
+  upstream limit (packet size cap and/or a per-parse timeout, e.g. parsing
+  inside a `Task` with `Task.yield/2` + `Task.shutdown/1`). Bounded pointer
+  following is tracked separately in #116.
   """
   @spec parse_safe(binary()) :: {:ok, t()} | {:error, parse_error()}
   def parse_safe(binary) when is_binary(binary) and byte_size(binary) < 12 do
