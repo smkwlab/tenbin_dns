@@ -575,9 +575,12 @@ defmodule DNSpacket do
   rescue
     # A truncated section/record makes a binary pattern fail to match:
     # FunctionClauseError (no parse clause matches the leftover bytes) or
-    # MatchError (a `<<...>> = rest` inside an rdata clause). Map only those
-    # to :malformed; anything else (e.g. a genuine internal bug) keeps
-    # propagating so it is not silently swallowed.
+    # MatchError (a `<<...>> = rest` inside an rdata clause). This set is
+    # confirmed exhaustive by the no-raise property test (see
+    # dns_packet_parse_safe_test.exs) — parse/1 raises nothing else on
+    # malformed input. Map only those to :malformed; anything else (e.g. a
+    # genuine internal bug) keeps propagating so it is not silently
+    # swallowed. If the property ever surfaces another type, add it here.
     _error in [FunctionClauseError, MatchError] ->
       {:error, :malformed}
   end

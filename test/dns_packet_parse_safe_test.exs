@@ -7,6 +7,7 @@ defmodule DNSpacketParseSafeTest do
   instead of raising for input that genuinely cannot be parsed.
   """
   use ExUnit.Case, async: true
+  use ExUnitProperties
 
   # A well-formed query binary built through the public create/1
   defp valid_query do
@@ -79,6 +80,47 @@ defmodule DNSpacketParseSafeTest do
       header = <<0x1234::16, 0::16, 0::16, 1::16, 0::16, 0::16>>
       answer = <<0, 0, 6, 0, 1, 0, 0, 0, 0, 0, 2, 0, 0>>
       assert DNSpacket.parse_safe(header <> answer) == {:error, :malformed}
+    end
+  end
+
+  describe "no-raise contract (fuzz)" do
+    # Bytes are kept in 0..63 so the generator never emits a compression
+    # pointer (a 0b11-prefixed byte is >= 0xC0). That keeps the fuzz
+    # hang-free — pointer-loop resistance is a separate, pre-existing
+    # concern shared with parse/1 and out of scope here. The point of this
+    # property is to confirm parse_safe's narrowed rescue is exhaustive:
+    # malformed input must always come back as a tagged tuple, never raise.
+    # If parse/1 raised an exception type the rescue does not cover, the
+    # case below would crash and surface it with the shrunk input.
+    defp fuzz_binary do
+      StreamData.map(
+        StreamData.list_of(StreamData.integer(0..63), max_length: 48),
+        &:erlang.list_to_binary/1
+      )
+    end
+
+    defp assert_tagged(result) do
+      case result do
+        {:ok, %DNSpacket{}} -> :ok
+        {:error, reason} -> assert reason in [:not_binary, :invalid_header, :malformed]
+      end
+    end
+
+    property "never raises on an arbitrary short binary" do
+      check all bin <- fuzz_binary() do
+        assert_tagged(DNSpacket.parse_safe(bin))
+      end
+    end
+
+    property "never raises on a valid header over a fuzzed body" do
+      check all body <- fuzz_binary(),
+                qd <- StreamData.integer(0..3),
+                an <- StreamData.integer(0..3),
+                ns <- StreamData.integer(0..3),
+                ar <- StreamData.integer(0..3) do
+        header = <<0x1234::16, 0::16, qd::16, an::16, ns::16, ar::16>>
+        assert_tagged(DNSpacket.parse_safe(header <> body))
+      end
     end
   end
 end
