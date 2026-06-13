@@ -20,10 +20,15 @@ defmodule DNSpacket.RData do
 
   Each record type's `rdata` is a map with the fields below. This is the
   shape `DNSpacket.parse/1` returns in every record's `:rdata`, and the
-  shape `DNSpacket.create/1` expects. Integer widths note the wire field
-  size; addresses are `:inet` address tuples (4-element for IPv4, 8-element
-  for IPv6) and domain names are dotted strings with the trailing root
-  label (`"example.com."`).
+  shape `DNSpacket.create/1` expects, with one asymmetry: NSEC
+  `type_bit_maps` is *returned* as a list of type atoms but `create/1`
+  *also* accepts a pre-built bitmap binary (see `t:nsec_rdata/0`).
+
+  Integer widths note the wire field size; addresses are `:inet` address
+  tuples (4-element for IPv4, 8-element for IPv6). Domain names are dotted
+  strings that must carry the trailing root label (`"example.com."`, not
+  `"example.com"`) — `create/1` encodes labels verbatim and a missing
+  trailing dot produces an unterminated name on the wire.
 
   | Type | Fields |
   |------|--------|
@@ -40,7 +45,7 @@ defmodule DNSpacket.RData do
   | `:naptr` | `order`, `preference` (16-bit), `flags`, `services`, `regexp`, `replacement` |
   | `:dnskey` | `flags` (16-bit), `protocol`, `algorithm` (8-bit), `public_key` |
   | `:ds` | `key_tag` (16-bit), `algorithm`, `digest_type` (8-bit), `digest` |
-  | `:rrsig` | `type_covered`, `key_tag` (16-bit), `algorithm`, `labels` (8-bit), `original_ttl`, `signature_expiration`, `signature_inception` (32-bit), `signer_name`, `signature` |
+  | `:rrsig` | `type_covered` (16-bit), `algorithm`, `labels` (8-bit), `original_ttl`, `signature_expiration`, `signature_inception` (32-bit), `key_tag` (16-bit), `signer_name`, `signature` |
   | `:nsec` | `next_domain_name`, `type_bit_maps` (list of type atoms) |
   | `:svcb` / `:https` | `priority` (16-bit), `target`, `svc_params` (see `t:svc_params/0`) |
 
