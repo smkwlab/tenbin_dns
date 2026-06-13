@@ -18,6 +18,9 @@ defmodule DNSpacketTest do
   use ExUnit.Case
   import Bitwise
 
+  # Verifies the iex> examples in DNSpacket docs (currently parse_safe/1)
+  doctest DNSpacket
+
   # Internal-contract tests: fallback clauses for unknown record types
   # cannot be exercised through a create/parse round-trip. Per-type
   # create/parse behavior is covered by test/dns_packet_roundtrip_test.exs
