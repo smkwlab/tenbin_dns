@@ -130,6 +130,36 @@ defmodule DNSpacketNameLengthTest do
       assert DNSpacket.parse_safe(packet_256) == {:error, :malformed}
     end
 
+    test "the 255-octet cap is enforced across a compression pointer" do
+      # Outer name = one 100-octet label (101 wire octets) then a pointer to a
+      # target. Because `len` is threaded into the pointer recursion, the
+      # target's labels are bounded by the *combined* running total, so a name
+      # assembled across a pointer jump is capped just like a flat name. This is
+      # the scenario "some labels, then jump to a long name": it must NOT slip
+      # past the limit.
+      #
+      # layout: header(12) | outer label(101) @12 | pointer @113 | qtype/qclass
+      #         | target @119
+      outer = <<100, String.duplicate("a", 100)::binary>>
+      target_off = 12 + byte_size(outer) + 2 + 4
+      ptr = <<0b11::2, target_off::14>>
+      q = header() <> outer <> ptr <> <<1::16, 1::16>>
+
+      # Combined = 101 (outer) + 153 (target label 152 + len octet) + 1 root =
+      # 255: accepted, and the pointer resolves to the full "a...b..." name.
+      target_ok = <<152, String.duplicate("b", 152)::binary, 0>>
+      assert {:ok, parsed} = DNSpacket.parse_safe(q <> target_ok)
+
+      assert hd(parsed.question).qname ==
+               String.duplicate("a", 100) <> "." <> String.duplicate("b", 152) <> "."
+
+      # One octet more in the target (label 153) makes the combined name 256:
+      # rejected, even though neither the outer name nor the target alone is
+      # over the limit.
+      target_over = <<153, String.duplicate("b", 153)::binary, 0>>
+      assert DNSpacket.parse_safe(q <> target_over) == {:error, :malformed}
+    end
+
     test "legitimate backward compression still decodes" do
       # Two questions where the second name is a pointer to the first (the
       # common compression case) must still parse.
