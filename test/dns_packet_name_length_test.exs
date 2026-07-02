@@ -100,6 +100,36 @@ defmodule DNSpacketNameLengthTest do
       assert hd(parsed.question).qname == name
     end
 
+    test "a name of exactly 255 wire octets is accepted; 256 is rejected" do
+      # RFC 1035 §3.1 caps the wire name (label + length octets + root) at 255.
+      # Labels 63+63+63+61 => (64+64+64+62) = 254 label octets + 1 root = 255.
+      name_255 =
+        <<63, String.duplicate("a", 63)::binary, 63, String.duplicate("b", 63)::binary, 63,
+          String.duplicate("c", 63)::binary, 61, String.duplicate("d", 61)::binary, 0>>
+
+      assert byte_size(name_255) == 255
+      packet_255 = header() <> name_255 <> <<1::16, 1::16>>
+      assert {:ok, parsed} = DNSpacket.parse_safe(packet_255)
+
+      assert hd(parsed.question).qname ==
+               String.duplicate("a", 63) <>
+                 "." <>
+                 String.duplicate("b", 63) <>
+                 "." <>
+                 String.duplicate("c", 63) <>
+                 "." <>
+                 String.duplicate("d", 61) <> "."
+
+      # One octet over the limit (last label 62 => wire name 256) is rejected.
+      name_256 =
+        <<63, String.duplicate("a", 63)::binary, 63, String.duplicate("b", 63)::binary, 63,
+          String.duplicate("c", 63)::binary, 62, String.duplicate("d", 62)::binary, 0>>
+
+      assert byte_size(name_256) == 256
+      packet_256 = header() <> name_256 <> <<1::16, 1::16>>
+      assert DNSpacket.parse_safe(packet_256) == {:error, :malformed}
+    end
+
     test "legitimate backward compression still decodes" do
       # Two questions where the second name is a pointer to the first (the
       # common compression case) must still parse.
