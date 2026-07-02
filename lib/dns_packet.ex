@@ -170,7 +170,7 @@ defmodule DNSpacket do
               create_character_string: 1,
               add_rdlength: 1,
               parse_name: 3,
-              parse_name_acc: 4,
+              parse_name_acc: 5,
               parse_sections: 6,
               parse_question_fast: 4,
               parse_answer_fast: 4,
@@ -705,11 +705,11 @@ defmodule DNSpacket do
   # names with it; local callers still get the @compile :inline benefit
   @doc false
   def parse_name(body, orig_body, "") do
-    parse_name_acc(body, orig_body, [], byte_size(orig_body))
+    parse_name_acc(body, orig_body, [], byte_size(orig_body), 0)
   end
 
   def parse_name(body, orig_body, result) do
-    parse_name_acc(body, orig_body, [result], byte_size(orig_body))
+    parse_name_acc(body, orig_body, [result], byte_size(orig_body), 0)
   end
 
   # `ceiling` is the strictly-decreasing bound a compression pointer must
@@ -718,28 +718,42 @@ defmodule DNSpacket do
   # jump targets therefore strictly decrease, making loops impossible. A
   # pointer that violates this (offset >= ceiling) matches no clause and
   # raises FunctionClauseError, which parse_safe/1 maps to :malformed (#116).
-  defp parse_name_acc(<<0::8, body::binary>>, orig_body, [], _ceiling) do
+  #
+  # `len` is the running count of wire octets consumed by this name (each
+  # label's length byte + its bytes). RFC 1035 §3.1 caps a domain name at 255
+  # octets including the root; the label clause below refuses to accept a
+  # label that would push the name past that limit. `len` is threaded into the
+  # pointer recursion so the *assembled* name is bounded even across
+  # compression jumps. This closes the O(n²) decompression amplification: a
+  # pointer chain that appends a label at every hop can no longer grow the
+  # reassembled name without bound (see #119).
+  defp parse_name_acc(<<0::8, body::binary>>, orig_body, [], _ceiling, _len) do
     {body, orig_body, "."}
   end
 
-  defp parse_name_acc(<<0::8, body::binary>>, orig_body, acc, _ceiling) do
+  defp parse_name_acc(<<0::8, body::binary>>, orig_body, acc, _ceiling, _len) do
     {body, orig_body, IO.iodata_to_binary(Enum.reverse(acc))}
   end
 
-  defp parse_name_acc(<<0b11::2, offset::14, body::binary>>, orig_body, acc, ceiling)
+  defp parse_name_acc(<<0b11::2, offset::14, body::binary>>, orig_body, acc, ceiling, len)
        when offset < ceiling do
     <<_::binary-size(^offset), tmp_body::binary>> = orig_body
-    {_, _, name} = parse_name_acc(tmp_body, orig_body, [], offset)
+    {_, _, name} = parse_name_acc(tmp_body, orig_body, [], offset, len)
     {body, orig_body, IO.iodata_to_binary(Enum.reverse([name | acc]))}
   end
 
+  # A label consumes 1 length octet + `length` bytes. Reject (by matching no
+  # clause -> FunctionClauseError -> :malformed) once the name would exceed the
+  # RFC 1035 255-octet limit; +1 leaves room for the terminating root octet.
   defp parse_name_acc(
          <<length::8, name::binary-size(length), body::binary>>,
          orig_body,
          acc,
-         ceiling
-       ) do
-    parse_name_acc(body, orig_body, ["." | [name | acc]], ceiling)
+         ceiling,
+         len
+       )
+       when len + length + 1 <= 254 do
+    parse_name_acc(body, orig_body, ["." | [name | acc]], ceiling, len + length + 1)
   end
 
   @doc false
