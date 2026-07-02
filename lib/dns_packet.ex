@@ -164,6 +164,10 @@ defmodule DNSpacket do
   alias DNSpacket.EDNS
   alias DNSpacket.RData
 
+  # RFC 1035 §3.1: a domain name in wire form (all label + length octets plus
+  # the terminating root octet) is limited to 255 octets. See parse_name_acc/5.
+  @max_name_octets 255
+
   # Aggressive inlining for maximum speed (over memory efficiency)
   @compile {:inline,
             [
@@ -743,12 +747,12 @@ defmodule DNSpacket do
   end
 
   # A label consumes its length octet + `length` data bytes, so `len + length
-  # + 1` is the running label-octet total once this label is included. RFC 1035
-  # §3.1 caps the whole wire name -- all label octets plus the terminating root
-  # octet -- at 255, so the label octets alone must stay <= 254 and the root
-  # supplies the final octet (that is where the 254 threshold, not 255, comes
-  # from -- the `+ 1` here is the label's own length octet, not the root). A
-  # label that would push the total past 254 matches no clause ->
+  # + 1` is the running label-octet total once this label is included (the
+  # `+ 1` is the label's own length octet, not the root). RFC 1035 §3.1 caps
+  # the whole wire name -- all label octets plus the terminating root octet --
+  # at @max_name_octets, so the label octets alone must stay within
+  # @max_name_octets - 1 and the root supplies the final octet. A label that
+  # would push the total past that bound matches no clause ->
   # FunctionClauseError -> :malformed. Exactly-255-octet names are accepted;
   # 256 is rejected (see the boundary test in dns_packet_name_length_test.exs).
   defp parse_name_acc(
@@ -758,7 +762,7 @@ defmodule DNSpacket do
          ceiling,
          len
        )
-       when len + length + 1 <= 254 do
+       when len + length + 1 <= @max_name_octets - 1 do
     parse_name_acc(body, orig_body, ["." | [name | acc]], ceiling, len + length + 1)
   end
 
