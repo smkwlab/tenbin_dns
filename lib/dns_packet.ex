@@ -742,9 +742,15 @@ defmodule DNSpacket do
     {body, orig_body, IO.iodata_to_binary(Enum.reverse([name | acc]))}
   end
 
-  # A label consumes 1 length octet + `length` bytes. Reject (by matching no
-  # clause -> FunctionClauseError -> :malformed) once the name would exceed the
-  # RFC 1035 255-octet limit; +1 leaves room for the terminating root octet.
+  # A label consumes its length octet + `length` data bytes, so `len + length
+  # + 1` is the running label-octet total once this label is included. RFC 1035
+  # §3.1 caps the whole wire name -- all label octets plus the terminating root
+  # octet -- at 255, so the label octets alone must stay <= 254 and the root
+  # supplies the final octet (that is where the 254 threshold, not 255, comes
+  # from -- the `+ 1` here is the label's own length octet, not the root). A
+  # label that would push the total past 254 matches no clause ->
+  # FunctionClauseError -> :malformed. Exactly-255-octet names are accepted;
+  # 256 is rejected (see the boundary test in dns_packet_name_length_test.exs).
   defp parse_name_acc(
          <<length::8, name::binary-size(length), body::binary>>,
          orig_body,
