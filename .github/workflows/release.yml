@@ -23,7 +23,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       
     - name: Set up Elixir
       uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
@@ -52,7 +52,7 @@ jobs:
         HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
         
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+      uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
       with:
         body: |
           ## Release ${{ github.ref_name }}
