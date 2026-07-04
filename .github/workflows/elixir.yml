@@ -22,5 +22,5 @@ concurrency:
 
 jobs:
   ci:
-    uses: smkwlab/.github/.github/workflows/elixir-ci.yml@v1
+    uses: smkwlab/.github/.github/workflows/elixir-ci.yml@test-upload-artifact
     secrets: inherit
