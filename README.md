@@ -9,7 +9,7 @@ An Elixir library for DNS packet parsing and creation. Tenbin.DNS provides handl
 defp deps do
   [
     # ...
-    {:tenbin_dns, "~> 0.7.1"}
+    {:tenbin_dns, git: "https://github.com/smkwlab/tenbin_dns.git", tag: "0.8.0"}
   ]
 end
 ```
@@ -60,16 +60,21 @@ See [Usage](#usage) below for richer record types (HTTPS / SVCB, SRV, DNSSEC) an
 
 ## Installation
 
-Add `tenbin_dns` to your list of dependencies in `mix.exs`:
+Tenbin.DNS is not published on Hex yet, so depend on it by git tag. Pin an
+immutable tag rather than a branch: `mix deps.update` follows a branch and
+would silently change what you build against.
 
 ```elixir
 defp deps do
   [
     # ... existing dependencies
-    {:tenbin_dns, "~> 0.7.1"}
+    {:tenbin_dns, git: "https://github.com/smkwlab/tenbin_dns.git", tag: "0.8.0"}
   ]
 end
 ```
+
+Replace the tag with whichever [tagged version](https://github.com/smkwlab/tenbin_dns/tags)
+you want. Once the package is on Hex this becomes the usual `{:tenbin_dns, "~> x.y"}`.
 
 ## Usage
 
