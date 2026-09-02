@@ -9,7 +9,7 @@ An Elixir library for DNS packet parsing and creation. Tenbin.DNS provides handl
 defp deps do
   [
     # ...
-    {:tenbin_dns, git: "https://github.com/smkwlab/tenbin_dns.git", tag: "0.8.0"}
+    {:tenbin_dns, git: "https://github.com/smkwlab/tenbin_dns.git", tag: "0.9.0"}
   ]
 end
 ```
@@ -68,7 +68,7 @@ would silently change what you build against.
 defp deps do
   [
     # ... existing dependencies
-    {:tenbin_dns, git: "https://github.com/smkwlab/tenbin_dns.git", tag: "0.8.0"}
+    {:tenbin_dns, git: "https://github.com/smkwlab/tenbin_dns.git", tag: "0.9.0"}
   ]
 end
 ```
