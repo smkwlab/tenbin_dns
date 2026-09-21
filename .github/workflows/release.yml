@@ -11,6 +11,11 @@ on:
       # Enabling this does not start publishing to Hex. That stays behind the
       # publish_to_hex input, which is undefined on a tag push and therefore
       # false, so the step is skipped. The dispatch path keeps it available.
+      #
+      # Release tags only. A pre-release such as 0.9.0-rc1 does not match and
+      # starts nothing. That is deliberate -- no repository here cuts them --
+      # but it is silent, so widen this on purpose if that ever changes rather
+      # than wondering why a tag did nothing.
       - '[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
