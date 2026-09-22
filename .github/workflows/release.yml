@@ -1,10 +1,22 @@
 name: Release
 
 on:
-  # Disabled until ready for Hex publication
-  # push:
-  #   tags:
-  #     - 'v*'
+  push:
+    tags:
+      # The tags this repository actually carries have no `v` prefix (0.9.0),
+      # so the commented-out 'v*' would have matched nothing had it been
+      # enabled -- tdig #50 shipped that exact filter, the release never fired,
+      # and #51 had to undo it.
+      #
+      # Enabling this does not start publishing to Hex. That stays behind the
+      # publish_to_hex input, which is undefined on a tag push and therefore
+      # false, so the step is skipped. The dispatch path keeps it available.
+      #
+      # Release tags only. A pre-release such as 0.9.0-rc1 does not match and
+      # starts nothing. That is deliberate -- no repository here cuts them --
+      # but it is silent, so widen this on purpose if that ever changes rather
+      # than wondering why a tag did nothing.
+      - '[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
       publish_to_hex:
@@ -46,12 +58,19 @@ jobs:
     - name: Publish to Hex
       if: ${{ inputs.publish_to_hex }}
       run: |
-        mix hex.config api_key $HEX_API_KEY
+        mix hex.config api_key "$HEX_API_KEY"
         mix hex.publish --yes
       env:
         HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
         
     - name: Create GitHub Release
+      # Only from a tag. Everything below reads github.ref_name -- the release
+      # title, the archive name, the `~> X.Y.Z` in the install snippet -- and on
+      # a workflow_dispatch that is the branch, so a dispatch would publish a
+      # release called "Release main" pinning a version that does not exist.
+      # Guarding here leaves dispatch as a way to build and test without
+      # spending a version, which is what tdig #94 added for the same reason.
+      if: ${{ startsWith(github.ref, 'refs/tags/') }}
       uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
       with:
         body: |
