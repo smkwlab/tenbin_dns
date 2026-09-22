@@ -65,7 +65,20 @@ jobs:
       # the release step is skipped there anyway.
       if: startsWith(github.ref, 'refs/tags/')
       run: |
-        MIX_VERSION=$(mix run --no-start -e 'IO.puts(Mix.Project.config()[:version])' | tail -n 1)
+        # Read first, compare second. Written as one pipeline the exit status
+        # belongs to tail, so a mix that could not run at all reports as a
+        # version mismatch against an empty string -- a failure with the wrong
+        # name on it, pointing at the tag instead of at mix.
+        if ! MIX_OUTPUT=$(mix run --no-start -e 'IO.puts(Mix.Project.config()[:version])'); then
+          echo "::error::could not read the version from mix.exs"
+          printf '%s\n' "${MIX_OUTPUT}"
+          exit 1
+        fi
+        MIX_VERSION=$(printf '%s\n' "${MIX_OUTPUT}" | tail -n 1)
+        if [ -z "${MIX_VERSION}" ]; then
+          echo "::error::mix ran but produced no version"
+          exit 1
+        fi
         TAG_VERSION="${GITHUB_REF_NAME}"
         if [ "${MIX_VERSION}" != "${TAG_VERSION}" ]; then
           echo "::error::mix.exs version (${MIX_VERSION}) does not match the tag (${TAG_VERSION})"
